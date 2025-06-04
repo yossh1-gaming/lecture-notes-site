@@ -171,6 +171,7 @@ async function getCurrentUserProfile() {
 /**
  * 6) ファイルアップロード関数
  */
+// main.js の uploadNote() 全体
 async function uploadNote() {
   if (!currentUser) {
     alert("ログインしてください");
@@ -186,7 +187,7 @@ async function uploadNote() {
     return;
   }
 
-  // ファイル名を安全化してタイムスタンプを付与
+  // ファイル名を半角英数字のみの safeName にして重複防止
   const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, "");
   const fileName = `${Date.now()}_${safeName}`;
   console.log("▶ uploadNote(): fileName =", fileName);
@@ -204,24 +205,21 @@ async function uploadNote() {
     return;
   }
 
-  // 2) バケット名を取り除いて「相対パス」だけを取り出す
-  //    uploadData.path は "lecture-files/1749050379300_bibunn.pdf" のように返ってくる
-  let relativePath = uploadData.path;
-  if (relativePath.startsWith("lecture-files/")) {
-    relativePath = relativePath.slice("lecture-files/".length);
-  }
-  console.log("▶ relativePath:", relativePath); // 例: "1749050379300_bibunn.pdf"
+  // uploadData.path は "lecture-files/174905…pdf" という形式で返る
+  // ここから「lecture-files/」部分を取り除き、相対パスだけを notes.file_url に保存
+  const relativePath = uploadData.path.replace(/^lecture-files\//, "");
+  console.log("▶ relativePath を保存:", relativePath);
 
-  // 3) notes テーブルには「相対パスだけ」を file_url フィールドに保存する
-  //    （publicUrl を使わない）
+  // 2) notes テーブルに「相対パスだけ」を保存
   const { data: insertData, error: insertError } = await supabase
     .from("notes")
     .insert({
       title,
       subject,
-      file_url: relativePath, // ここに相対パスだけを入れる
+      file_url: relativePath,   // ← ここには必ず "174905…pdf" のような文字列だけ
       user_id: currentUser.id,
-    });
+    })
+    .select();  // 挿入した行を返してもらう場合は .select() をつけると便利
 
   console.log("▶ insertData:", insertData);
   console.log("▶ insertError:", insertError);
@@ -234,15 +232,15 @@ async function uploadNote() {
   document.getElementById("note-title").value   = "";
   document.getElementById("note-subject").value = "";
   document.getElementById("note-file").value    = "";
-
-  // 4) 再び一覧を読み込む
-  loadNotes();
+  loadNotes();  // 一覧を再読み込み
 }
+
 
 
 /**
  * 7) 講義録一覧読み込み関数
  */
+// main.js の loadNotes() 内の該当部分
 async function loadNotes() {
   const { data: notes, error } = await supabase
     .from("notes")
@@ -250,7 +248,6 @@ async function loadNotes() {
     .order("created_at", { ascending: false });
 
   console.log("▶ loadNotes: notes =", notes, " error =", error);
-
   if (error) {
     console.error("一覧取得エラー：", error.message);
     return;
@@ -264,47 +261,47 @@ async function loadNotes() {
   listElem.innerHTML = "";
 
   notes.forEach((note) => {
-    // 1) 「タイトル＋科目」のテキスト要素
+    // (1) タイトル＋科目をテキストで表示
     const textSpan = document.createElement("span");
     textSpan.textContent = `${note.title}（${note.subject || "－"}）`;
 
-    // 2) アップロード日時も表示
+    // (2) アップロード日時を表示
     const dateSpan = document.createElement("span");
-    dateSpan.className   = "small";
+    dateSpan.className = "small";
     dateSpan.textContent = ` – ${new Date(note.created_at).toLocaleString()}`;
 
-    // 3) 「PDF を開く／ダウンロード」ボタンを作成
+    // (3) 「PDFを開く」ボタンを作成
     const viewBtn = document.createElement("button");
     viewBtn.textContent = "PDFを開く";
     viewBtn.style.marginLeft = "12px";
 
     if (currentUser) {
-      // ログイン済みユーザーなら「署名付きURL」を発行して新しいタブで開く
+      // ログイン済みなら、note.file_url（相対パス）を使って署名付きURLを取得
       viewBtn.onclick = async () => {
-        // note.file_url は "1749051597181_bibunn.pdf" のような「相対パス」のはず
-        const relativePath = note.file_url; 
+        // note.file_url は "1749051597181_bibunn.pdf" のような相対パス
+        const relativePath = note.file_url;
 
-        // ① 署名付き URL を発行
+        // createSignedUrl には必ず「相対パスだけ」を渡す
         const { data: signedData, error: signedError } = await supabase
-            .storage
-            .from("lecture-files")
-            .createSignedUrl(relativePath, 60); // 第2引数=有効期限(秒)
+          .storage
+          .from("lecture-files")              // バケット名を指定
+          .createSignedUrl(relativePath, 60);  // 有効期限を 60 秒に設定
 
         if (signedError) {
-            alert("署名付きURLの取得に失敗しました：" + signedError.message);
-            return;
+          alert("署名付きURLの取得に失敗しました：" + signedError.message);
+          return;
         }
-        // ② 新しいタブで署名付き URL を開く
+        // 署名付きURLを新しいタブで開く
         window.open(signedData.signedUrl, "_blank");
       };
     } else {
-      // 未ログインユーザーならボタンは無効化（グレーアウト表示など）
-      viewBtn.disabled          = true;
-      viewBtn.style.opacity     = "0.5";
-      viewBtn.title             = "ログインしてからご利用ください";
+      // 未ログインならボタンを無効化（グレーアウト）
+      viewBtn.disabled      = true;
+      viewBtn.style.opacity = "0.5";
+      viewBtn.title         = "ログインしてからご利用ください";
     }
 
-    // 4) 管理者なら「削除」ボタンを追加
+    // (4) 管理者なら「削除」ボタンを追加
     let deleteBtn = null;
     if (currentUserProfile && currentUserProfile.is_admin) {
       deleteBtn = document.createElement("button");
@@ -317,7 +314,7 @@ async function loadNotes() {
       };
     }
 
-    // 5) <li> 要素にまとめる
+    // (5) <li> 要素にまとめる
     const li = document.createElement("li");
     li.appendChild(textSpan);
     li.appendChild(dateSpan);
@@ -327,6 +324,7 @@ async function loadNotes() {
     listElem.appendChild(li);
   });
 }
+
 
 
 /**
