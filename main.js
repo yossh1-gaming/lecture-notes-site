@@ -93,6 +93,7 @@ supabase.auth.onAuthStateChange(async () => {
 
 // 講義録をアップロード
 export async function uploadNote() {
+  // ① フォームからタイトル・科目・ファイル取得
   const title = document.getElementById("note-title").value;
   const subject = document.getElementById("note-subject").value;
   const fileInput = document.getElementById("note-file");
@@ -102,35 +103,56 @@ export async function uploadNote() {
     alert("講義録タイトルとファイルを選択してください");
     return;
   }
-
-  // ログインしているかチェック
   if (!currentUser) {
     alert("ログインしてください");
     return;
   }
 
-  // ファイル名にタイムスタンプを付与して重複防止
-  const fileName = `${Date.now()}_${file.name}`;
+  // ② ファイル名を半角英数字だけにしてタイムスタンプを付与
+  const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, "");
+  const fileName = `${Date.now()}_${safeName}`;
+  console.log("▶ uploadNote(): fileName =", fileName);
+  console.log("▶ uploadNote(): currentUser.id =", currentUser.id);
 
-  // 1) Supabase Storage にアップロード
+  // ③ Supabase Storage にアップロード
   const { data: uploadData, error: uploadError } = await supabase
     .storage
     .from("lecture-files")
     .upload(fileName, file);
+
+  // ここで console.log して、uploadData と uploadError の中身を必ず見る
+  console.log("▶ uploadData:", uploadData);
+  console.log("▶ uploadError:", uploadError);
 
   if (uploadError) {
     alert("アップロードエラー：" + uploadError.message);
     return;
   }
 
-  // 2) 公開URLを取得
-  const { data: { publicUrl } } = supabase
+  // ④ uploadData.path を確認して相対パスを切り出し
+  console.log("▶ uploadData.path (raw):", uploadData.path);
+  let relativePath = uploadData.path;
+  if (relativePath.startsWith("lecture-files/")) {
+    relativePath = relativePath.slice("lecture-files/".length);
+  }
+  console.log("▶ getPublicUrl に渡す relativePath:", relativePath);
+
+  // ⑤ 公開 URL を取得
+  const urlResponse = supabase
     .storage
     .from("lecture-files")
-    .getPublicUrl(uploadData.path);
+    .getPublicUrl(relativePath);
+  console.log("▶ urlResponse:", urlResponse);
 
-  // 3) notes テーブルにレコードを挿入
-  const { error: insertError } = await supabase
+  if (urlResponse.error) {
+    alert("URL取得エラー：" + urlResponse.error.message);
+    return;
+  }
+  const publicUrl = urlResponse.data.publicUrl;
+  console.log("▶ publicUrl:", publicUrl);
+
+  // ⑥ notes テーブルにレコードを挿入
+  const { data: insertData, error: insertError } = await supabase
     .from("notes")
     .insert({
       title,
@@ -139,17 +161,19 @@ export async function uploadNote() {
       user_id: currentUser.id,
     });
 
+  console.log("▶ insertData:", insertData);
+  console.log("▶ insertError:", insertError);
+
   if (insertError) {
     alert("データ登録エラー：" + insertError.message);
     return;
   }
 
   alert("アップロード完了！");
-  document.getElementById("note-title").value = "";
-  document.getElementById("note-subject").value = "";
   fileInput.value = "";
-  loadNotes(); // 一覧を再読み込み
+  loadNotes();
 }
+
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━
 // 3. 一覧取得＆削除関係
