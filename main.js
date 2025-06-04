@@ -1,19 +1,104 @@
 // main.js
-import { supabase } from "./supabase.js"; // supabase.js でエクスポートしたクライアントを読み込む
+import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
+
+// ── 0) Supabase クライアントの設定 ──
+const SUPABASE_URL     = "https://camhjokfxzzelqlirxir.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.WpJ2AWmbgCWHKwxrP9EmqEO4CGT65OjQsW2YSJcVCwM";
+export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 let currentUser = null;
 let currentUserProfile = null;
 
 /**
- * 1) 現在のユーザー情報とプロフィールを取得する
- * - supabase.auth.getUser() でセッション中のユーザーを取得
- * - profiles テーブルから username と is_admin を読み込む
+ * 1) 初期表示・認証状況チェック
+ * - ページ読み込み時にセッションをチェックし、UIを更新
  */
-export async function getCurrentUserProfile() {
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser();
+async function setupUI() {
+  const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+  if (sessionError) {
+    console.error("セッション取得エラー:", sessionError);
+  }
+
+  const userInfoDiv = document.getElementById("user-info");
+  const authForms    = document.getElementById("auth-forms");
+  const uploadSection = document.getElementById("upload-section");
+  
+  // ノート一覧を常に表示するので leave notes-list visible
+
+  if (session && session.user) {
+    // ログイン済み
+    currentUser = session.user;
+    userInfoDiv.textContent = `ログイン中: ${currentUser.email}`;
+    authForms.style.display = "none";
+    uploadSection.style.display = "block";
+    await getCurrentUserProfile();
+    loadNotes();
+  } else {
+    // 未ログイン
+    currentUser = null;
+    userInfoDiv.textContent = "";
+    authForms.style.display = "block";
+    uploadSection.style.display = "none";
+    // 未ログイン時でも一覧は取得可能
+    loadNotes();
+  }
+}
+
+/**
+ * 2) サインアップ関数
+ */
+async function signUp() {
+  const email    = document.getElementById("email").value;
+  const password = document.getElementById("password").value;
+  if (!email || !password) {
+    alert("メールアドレスとパスワードは必須です");
+    return;
+  }
+  const { data, error } = await supabase.auth.signUp({ email, password });
+  if (error) {
+    alert("サインアップエラー：" + error.message);
+  } else {
+    alert("登録メールを送信しました。認証リンクをクリックして完了させてください。");
+  }
+}
+
+/**
+ * 3) サインイン関数
+ */
+async function signIn() {
+  const email    = document.getElementById("email").value;
+  const password = document.getElementById("password").value;
+  if (!email || !password) {
+    alert("メールアドレスとパスワードは必須です");
+    return;
+  }
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  if (error) {
+    alert("サインインエラー：" + error.message);
+  } else {
+    currentUser = data.user;
+    await setupUI();
+  }
+}
+
+/**
+ * 4) サインアウト関数
+ */
+async function signOut() {
+  const { error } = await supabase.auth.signOut();
+  if (error) {
+    alert("サインアウトエラー：" + error.message);
+  } else {
+    currentUser = null;
+    await setupUI();
+  }
+}
+
+/**
+ * 5) プロフィール取得関数
+ */
+async function getCurrentUserProfile() {
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
   if (userError || !user) {
     console.error("ユーザー情報の取得に失敗しました", userError);
     return null;
@@ -37,61 +122,14 @@ export async function getCurrentUserProfile() {
 }
 
 /**
- * 2) サインアップ関数
- * - prompt() でメールとパスワードを入力させ、supabase.auth.signUp を実行
+ * 6) ファイルアップロード関数
  */
-export async function signUp() {
-  const email = prompt("メールアドレスを入力してください");
-  const password = prompt("パスワードを入力してください");
-  if (!email || !password) {
-    alert("メールアドレスとパスワードは必須です");
-    return;
-  }
-
-  const { data, error } = await supabase.auth.signUp({ email, password });
-  if (error) {
-    alert("サインアップエラー：" + error.message);
-  } else {
-    alert("登録メールを送信しました。認証リンクをクリックして完了させてください。");
-  }
-}
-
-/**
- * 3) サインイン関数
- * - prompt() でメールとパスワードを入力させ、supabase.auth.signInWithPassword を実行
- * - 成功時に currentUser とプロフィールを取得
- */
-export async function signIn() {
-  const email = prompt("メールアドレスを入力してください");
-  const password = prompt("パスワードを入力してください");
-  if (!email || !password) {
-    alert("メールアドレスとパスワードは必須です");
-    return;
-  }
-
-  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-  if (error) {
-    alert("サインインエラー：" + error.message);
-  } else {
-    currentUser = data.user;
-    console.log("▶ ログイン成功:", currentUser);
-    await getCurrentUserProfile();
-    loadNotes(); // ログイン後に講義録一覧を読み込む
-  }
-}
-
-/**
- * 4) ファイルアップロード関数
- * - 講義録タイトル・科目・ファイルを取得し、Storage にアップロード
- * - getPublicUrl で公開URLを取得し、notes テーブルにレコードを挿入
- */
-export async function uploadNote() {
+async function uploadNote() {
   if (!currentUser) {
     alert("ログインしてください");
     return;
   }
-
-  const title = document.getElementById("note-title").value;
+  const title   = document.getElementById("note-title").value;
   const subject = document.getElementById("note-subject").value;
   const fileInput = document.getElementById("note-file");
   const file = fileInput.files[0];
@@ -101,7 +139,7 @@ export async function uploadNote() {
     return;
   }
 
-  // ファイル名に日本語や特殊文字が含まれているとエラーになることがあるため、安全化
+  // ファイル名を安全化
   const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, "");
   const fileName = `${Date.now()}_${safeName}`;
   console.log("▶ uploadNote(): fileName =", fileName);
@@ -119,8 +157,7 @@ export async function uploadNote() {
     return;
   }
 
-  // 2) getPublicUrl 用の相対パスを切り出し
-  console.log("▶ uploadData.path (raw):", uploadData.path);
+  // 2) 相対パスに変換
   let relativePath = uploadData.path;
   if (relativePath.startsWith("lecture-files/")) {
     relativePath = relativePath.slice("lecture-files/".length);
@@ -140,7 +177,7 @@ export async function uploadNote() {
   const publicUrl = urlResponse.data.publicUrl;
   console.log("▶ publicUrl:", publicUrl);
 
-  // 4) notes テーブルにレコードを挿入
+  // 4) notes テーブルに挿入
   const { data: insertData, error: insertError } = await supabase
     .from("notes")
     .insert({
@@ -158,17 +195,16 @@ export async function uploadNote() {
   }
 
   alert("アップロード完了！");
-  document.getElementById("note-title").value = "";
+  document.getElementById("note-title").value   = "";
   document.getElementById("note-subject").value = "";
-  fileInput.value = "";
-  loadNotes(); // 一覧を再読み込み
+  document.getElementById("note-file").value    = "";
+  loadNotes();
 }
 
 /**
- * 5) 講義録一覧を取得して表示する関数
- * - notes テーブルからレコードを取得し、<ul id="notes-list"> に <li> を追加
+ * 7) 講義録一覧読み込み関数
  */
-export async function loadNotes() {
+async function loadNotes() {
   const { data: notes, error } = await supabase
     .from("notes")
     .select("*")
@@ -180,21 +216,22 @@ export async function loadNotes() {
   }
 
   const listElem = document.getElementById("notes-list");
-  listElem.innerHTML = ""; // クリア
+  if (!listElem) {
+    console.warn("notes-list 要素が見つかりません");
+    return;
+  }
+  listElem.innerHTML = "";
 
   notes.forEach((note) => {
-    // 1) リンク要素
     const link = document.createElement("a");
     link.href = note.file_url;
     link.target = "_blank";
     link.textContent = `${note.title}（${note.subject || "－"}）`;
 
-    // 2) アップロード日時
     const dateSpan = document.createElement("span");
     dateSpan.className = "small";
     dateSpan.textContent = ` – ${new Date(note.created_at).toLocaleString()}`;
 
-    // 3) 管理者なら削除ボタンを作成
     let deleteBtn = null;
     if (currentUserProfile && currentUserProfile.is_admin) {
       deleteBtn = document.createElement("button");
@@ -207,7 +244,6 @@ export async function loadNotes() {
       };
     }
 
-    // 4) <li> 要素にまとめる
     const li = document.createElement("li");
     li.appendChild(link);
     li.appendChild(dateSpan);
@@ -218,7 +254,7 @@ export async function loadNotes() {
 }
 
 /**
- * 6) 管理者専用：指定IDの note を削除する関数
+ * 8) 管理者用：講義録を削除
  */
 async function deleteNote(noteId) {
   const { error } = await supabase
@@ -230,35 +266,19 @@ async function deleteNote(noteId) {
     alert("削除に失敗しました: " + error.message);
   } else {
     alert("投稿を削除しました");
-    loadNotes(); // 削除後に再読み込み
+    loadNotes();
   }
 }
 
 /**
- * 7) ページ読み込み時に一度だけ実行
- * - セッションをチェックしてプロフィール読み込み
- * - HTML ボタンにイベントを紐づけ
+ * 9) ページ読み込み時の初期化
  */
 window.addEventListener("DOMContentLoaded", async () => {
-  // ① supabase.auth.getSession() を使って、セッションがあるかだけ確認する
-  const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-  if (sessionError) {
-    console.error("セッション取得エラー:", sessionError);
-    // 続行してもユーザーはいないのでプロフィール取得はスキップ
-  } else if (session && session.user) {
-    // すでにログイン済みならプロフィール取得
-    await getCurrentUserProfile();
-    // ノート一覧を読み込む
-    loadNotes();
-  }
+  await setupUI();
 
-  // ② ボタンのイベントハンドラ登録は DOM があれば行う
-  const signUpBtn = document.getElementById("sign-up-btn");
-  const signInBtn = document.getElementById("sign-in-btn");
-  const uploadBtn = document.getElementById("upload-btn");
-
-  // （後述の 2-1 を参照）これらの要素が null でないかをチェックしてから onclick を設定する
-  if (signUpBtn) signUpBtn.onclick = signUp;
-  if (signInBtn) signInBtn.onclick = signIn;
-  if (uploadBtn) uploadBtn.onclick = uploadNote;
+  // グローバルに関数を登録して、HTML の onclick から呼べるようにする
+  window.signUp     = signUp;
+  window.signIn     = signIn;
+  window.signOut    = signOut;
+  window.uploadNote = uploadNote;
 });
