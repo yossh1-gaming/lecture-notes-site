@@ -172,11 +172,14 @@ async function getCurrentUserProfile() {
  * 6) ファイルアップロード関数
  */
 // main.js の uploadNote() 全体
+// main.js の uploadNote() を次のように修正してください
+
 async function uploadNote() {
   if (!currentUser) {
     alert("ログインしてください");
     return;
   }
+
   const title   = document.getElementById("note-title").value;
   const subject = document.getElementById("note-subject").value;
   const file    = document.getElementById("note-file").files[0];
@@ -186,7 +189,7 @@ async function uploadNote() {
     return;
   }
 
-  // ファイル名をタイムスタンプ + 半角英数字に安全化
+  // 安全なファイル名を生成
   const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, "");
   const fileName = `${Date.now()}_${safeName}`;
 
@@ -201,22 +204,22 @@ async function uploadNote() {
     return;
   }
 
-  // uploadData.path は "lecture-files/1749051597181_bibunn.pdf" という形式
-  // ここから "lecture-files/" を取り除いて「相対パスだけ」にする
+  // uploadData.path は "lecture-files/1749051597181_bibunn.pdf" のように返る
+  // ここから "lecture-files/" を取り除き、相対パスだけを作成
   const relativePath = uploadData.path.replace(/^lecture-files\//, "");
-  console.log("▶ relativePath を保存:", relativePath);
-  //   → "1749051597181_bibunn.pdf" が得られる
+  console.log("▶ uploadNote(): relativePath を保存 =", relativePath);
+  //    → "1749051597181_bibunn.pdf" という文字列だけが得られる
 
-  // 2) notes テーブルには「相対パスだけ」を保存
+  // 2) notes テーブルには「相対パスだけ」を保存する
   const { data: insertData, error: insertError } = await supabase
     .from("notes")
     .insert({
       title,
       subject,
-      file_url: relativePath,   // ← ここには必ず "1749051597181_bibunn.pdf" だけを保存
+      file_url: relativePath, // ← 相対パスのみを保存
       user_id: currentUser.id,
     })
-    .select();  // 挿入後のレコードを取得するなら .select() をつけると便利
+    .select(); // ← 成功後にレコードを返してもらいたいときは .select() を付ける
 
   if (insertError) {
     alert("データ登録エラー：" + insertError.message);
@@ -235,7 +238,6 @@ async function uploadNote() {
 /**
  * 7) 講義録一覧読み込み関数
  */
-// main.js の loadNotes() 内の該当部分
 async function loadNotes() {
   const { data: notes, error } = await supabase
     .from("notes")
@@ -256,54 +258,65 @@ async function loadNotes() {
   listElem.innerHTML = "";
 
   notes.forEach((note) => {
-    // (1) タイトル表示
+    // 1) タイトル＋科目をテキストで表示
     const textSpan = document.createElement("span");
     textSpan.textContent = `${note.title}（${note.subject || "－"}）`;
 
-    // (2) アップロード日時表示
+    // 2) アップロード日時を表示
     const dateSpan = document.createElement("span");
     dateSpan.className = "small";
     dateSpan.textContent = ` – ${new Date(note.created_at).toLocaleString()}`;
 
-    // (3) 「PDFを開く」ボタン
+    // 3) 「PDFを開く」ボタンを作成
     const viewBtn = document.createElement("button");
     viewBtn.textContent = "PDFを開く";
     viewBtn.style.marginLeft = "12px";
 
     if (currentUser) {
-      // 必ず「相対パスだけ」を使う
+      // ログイン済みなら、note.file_url が相対パスだけになっているはず
       viewBtn.onclick = async () => {
-        // note.file_url は "1749051597181_bibunn.pdf" のような相対パス
-        const relativePath = note.file_url;
+        const relativePath = note.file_url; // 例: "1749051597181_bibunn.pdf"
+        console.log("▶ createSignedUrl に渡す relativePath =", relativePath);
 
-        // createSignedUrl(relativePath, 60) で署名付き URL を取得
+        // createSignedUrl(relativePath, 有効期限秒) を呼ぶ
         const { data: signedData, error: signedError } = await supabase
           .storage
-          .from("lecture-files")             // バケット名
-          .createSignedUrl(relativePath, 60); // 相対パスだけを渡す
+          .from("lecture-files")               // バケット名
+          .createSignedUrl(relativePath, 60);   // 相対パスだけを渡す
 
         if (signedError) {
           alert("署名付きURLの取得に失敗しました：" + signedError.message);
           return;
         }
-        // 署名付き URL を新規タブで開く
+        // 署名付きURLを新しいタブで開く
         window.open(signedData.signedUrl, "_blank");
       };
     } else {
-      // 未ログインユーザーはグレーアウトしてクリック不可にする
+      // 未ログイン時はボタンを無効化
       viewBtn.disabled      = true;
       viewBtn.style.opacity = "0.5";
       viewBtn.title         = "ログインしてからご利用ください";
     }
 
-    // (4) 管理者なら「削除」ボタンを追加（省略）
+    // 4) 管理者なら「削除」ボタンを追加
+    let deleteBtn = null;
+    if (currentUserProfile && currentUserProfile.is_admin) {
+      deleteBtn = document.createElement("button");
+      deleteBtn.className   = "delete-btn";
+      deleteBtn.textContent = "削除";
+      deleteBtn.onclick = () => {
+        if (confirm(`本当に「${note.title}」を削除しますか？`)) {
+          deleteNote(note.id);
+        }
+      };
+    }
 
-    // (5) <li> にすべてまとめる
+    // 5) <li> 要素にまとめる
     const li = document.createElement("li");
     li.appendChild(textSpan);
     li.appendChild(dateSpan);
     li.appendChild(viewBtn);
-    // 管理者用の deleteBtn があれば li.appendChild(deleteBtn)
+    if (deleteBtn) li.appendChild(deleteBtn);
 
     listElem.appendChild(li);
   });
