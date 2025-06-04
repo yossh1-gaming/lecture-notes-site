@@ -240,18 +240,25 @@ async function deleteNote(noteId) {
  * - HTML ボタンにイベントを紐づけ
  */
 window.addEventListener("DOMContentLoaded", async () => {
-  // 既にログイン済みか確認してプロフィール取得
-  await getCurrentUserProfile();
-
-  // サインアップ／サインインボタンにハンドラを紐づけ
-  document.getElementById("sign-up-btn").onclick = signUp;
-  document.getElementById("sign-in-btn").onclick = signIn;
-
-  // アップロードボタンにハンドラを紐づけ
-  document.getElementById("upload-btn").onclick = uploadNote;
-
-  // ログイン済みなら一覧を表示
-  if (currentUser) {
+  // ① supabase.auth.getSession() を使って、セッションがあるかだけ確認する
+  const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+  if (sessionError) {
+    console.error("セッション取得エラー:", sessionError);
+    // 続行してもユーザーはいないのでプロフィール取得はスキップ
+  } else if (session && session.user) {
+    // すでにログイン済みならプロフィール取得
+    await getCurrentUserProfile();
+    // ノート一覧を読み込む
     loadNotes();
   }
+
+  // ② ボタンのイベントハンドラ登録は DOM があれば行う
+  const signUpBtn = document.getElementById("sign-up-btn");
+  const signInBtn = document.getElementById("sign-in-btn");
+  const uploadBtn = document.getElementById("upload-btn");
+
+  // （後述の 2-1 を参照）これらの要素が null でないかをチェックしてから onclick を設定する
+  if (signUpBtn) signUpBtn.onclick = signUp;
+  if (signInBtn) signInBtn.onclick = signIn;
+  if (uploadBtn) uploadBtn.onclick = uploadNote;
 });
