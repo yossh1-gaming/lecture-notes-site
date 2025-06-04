@@ -210,10 +210,10 @@ async function loadNotes() {
     .select("*")
     .order("created_at", { ascending: false });
 
-    console.log("▶ loadNotes: notes の中身 =", notes, "error =", error);
+  console.log("▶ loadNotes: notes =", notes, " error =", error);
 
   if (error) {
-    console.error("一覧取得エラー：", error);
+    console.error("一覧取得エラー：", error.message);
     return;
   }
 
@@ -225,19 +225,53 @@ async function loadNotes() {
   listElem.innerHTML = "";
 
   notes.forEach((note) => {
-    const link = document.createElement("a");
-    link.href = note.file_url;
-    link.target = "_blank";
-    link.textContent = `${note.title}（${note.subject || "－"}）`;
+    // 1) 「タイトル＋科目」のテキスト要素
+    const textSpan = document.createElement("span");
+    textSpan.textContent = `${note.title}（${note.subject || "－"}）`;
 
+    // 2) アップロード日時も表示
     const dateSpan = document.createElement("span");
-    dateSpan.className = "small";
+    dateSpan.className   = "small";
     dateSpan.textContent = ` – ${new Date(note.created_at).toLocaleString()}`;
 
+    // 3) 「PDF を開く／ダウンロード」ボタンを作成
+    const viewBtn = document.createElement("button");
+    viewBtn.textContent = "PDFを開く";
+    viewBtn.style.marginLeft = "12px";
+
+    if (currentUser) {
+      // ログイン済みユーザーなら「署名付きURL」を発行して新しいタブで開く
+      viewBtn.onclick = async () => {
+        try {
+          // 署名付きURLを約60秒（１分）だけ有効にする
+          const { data: signedData, error: signedError } = await supabase
+            .storage
+            .from("lecture-files")
+            .createSignedUrl(note.file_url, 60); // 第２引数は有効期限（秒）
+
+          if (signedError) {
+            alert("署名付きURLの取得に失敗しました：" + signedError.message);
+            return;
+          }
+          // 新しいタブで署名付きURLを開く
+          window.open(signedData.signedUrl, "_blank");
+        } catch (err) {
+          console.error("署名付きURL発行エラー：", err);
+          alert("エラーが発生しました。");
+        }
+      };
+    } else {
+      // 未ログインユーザーならボタンは無効化（グレーアウト表示など）
+      viewBtn.disabled          = true;
+      viewBtn.style.opacity     = "0.5";
+      viewBtn.title             = "ログインしてからご利用ください";
+    }
+
+    // 4) 管理者なら「削除」ボタンを追加
     let deleteBtn = null;
     if (currentUserProfile && currentUserProfile.is_admin) {
       deleteBtn = document.createElement("button");
-      deleteBtn.className = "delete-btn";
+      deleteBtn.className   = "delete-btn";
       deleteBtn.textContent = "削除";
       deleteBtn.onclick = () => {
         if (confirm(`本当に「${note.title}」を削除しますか？`)) {
@@ -246,14 +280,17 @@ async function loadNotes() {
       };
     }
 
+    // 5) <li> 要素にまとめる
     const li = document.createElement("li");
-    li.appendChild(link);
+    li.appendChild(textSpan);
     li.appendChild(dateSpan);
+    li.appendChild(viewBtn);
     if (deleteBtn) li.appendChild(deleteBtn);
 
     listElem.appendChild(li);
   });
 }
+
 
 /**
  * 8) 管理者用：講義録を削除
