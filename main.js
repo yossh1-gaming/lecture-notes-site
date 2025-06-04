@@ -210,6 +210,8 @@ async function loadNotes() {
     .select("*")
     .order("created_at", { ascending: false });
 
+    console.log("▶ loadNotes: notes の中身 =", notes, "error =", error);
+
   if (error) {
     console.error("一覧取得エラー：", error);
     return;
