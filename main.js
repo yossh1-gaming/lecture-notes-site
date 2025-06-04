@@ -87,9 +87,8 @@ async function signUp() {
 }
 
 
-/**
- * 3) サインイン関数
- */
+// main.js の signIn() に、サインイン成功後すぐ profiles.upsert() を追加する例
+
 async function signIn() {
   const email    = document.getElementById("email").value;
   const password = document.getElementById("password").value;
@@ -97,14 +96,38 @@ async function signIn() {
     alert("メールアドレスとパスワードは必須です");
     return;
   }
+
+  // ① Supabase Auth でサインインを実行
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  console.log("▶ signIn(): data =", data, " error =", error);
   if (error) {
-    alert("サインインエラー：" + error.message);
-  } else {
-    currentUser = data.user;
-    await setupUI();
+    alert("サインインエラー: " + error.message);
+    return;
   }
+
+  currentUser = data.user;
+
+  // ② profiles テーブルに行がなければ upsert して作成（username: email, is_admin: false）
+  const { data: upserted, error: profileError } = await supabase
+    .from("profiles")
+    .upsert({
+      id: currentUser.id,
+      username: email,
+      is_admin: false,
+    })
+    .select()        // 挿入後の行を受け取るために .select() をつける
+    .single();       // 1行だけ期待する
+  if (profileError) {
+    console.warn("profiles upsert エラー:", profileError.message);
+    // ここで止めず getCurrentUserProfile() に進める
+  } else {
+    console.log("▶ profiles に upsert した結果:", upserted);
+  }
+
+  // ③ 続けて UI をセットアップ
+  await setupUI();
 }
+
 
 /**
  * 4) サインアウト関数
@@ -267,23 +290,21 @@ async function loadNotes() {
     if (currentUser) {
       // ログイン済みユーザーなら「署名付きURL」を発行して新しいタブで開く
       viewBtn.onclick = async () => {
-        try {
-          // 署名付きURLを約60秒（１分）だけ有効にする
-          const { data: signedData, error: signedError } = await supabase
+        // note.file_url は "1749051597181_bibunn.pdf" のような「相対パス」のはず
+        const relativePath = note.file_url; 
+
+        // ① 署名付き URL を発行
+        const { data: signedData, error: signedError } = await supabase
             .storage
             .from("lecture-files")
-            .createSignedUrl(note.file_url, 60); // 第２引数は有効期限（秒）
+            .createSignedUrl(relativePath, 60); // 第2引数=有効期限(秒)
 
-          if (signedError) {
+        if (signedError) {
             alert("署名付きURLの取得に失敗しました：" + signedError.message);
             return;
-          }
-          // 新しいタブで署名付きURLを開く
-          window.open(signedData.signedUrl, "_blank");
-        } catch (err) {
-          console.error("署名付きURL発行エラー：", err);
-          alert("エラーが発生しました。");
         }
+        // ② 新しいタブで署名付き URL を開く
+        window.open(signedData.signedUrl, "_blank");
       };
     } else {
       // 未ログインユーザーならボタンは無効化（グレーアウト表示など）
