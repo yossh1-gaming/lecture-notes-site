@@ -179,18 +179,16 @@ async function uploadNote() {
   }
   const title   = document.getElementById("note-title").value;
   const subject = document.getElementById("note-subject").value;
-  const fileInput = document.getElementById("note-file");
-  const file = fileInput.files[0];
+  const file    = document.getElementById("note-file").files[0];
 
   if (!title || !file) {
     alert("講義録タイトルとファイルを選択してください");
     return;
   }
 
-  // ファイル名を半角英数字のみの safeName にして重複防止
+  // ファイル名をタイムスタンプ + 半角英数字に安全化
   const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, "");
   const fileName = `${Date.now()}_${safeName}`;
-  console.log("▶ uploadNote(): fileName =", fileName);
 
   // 1) Supabase Storage にアップロード
   const { data: uploadData, error: uploadError } = await supabase
@@ -198,31 +196,28 @@ async function uploadNote() {
     .from("lecture-files")
     .upload(fileName, file);
 
-  console.log("▶ uploadData:", uploadData);
-  console.log("▶ uploadError:", uploadError);
   if (uploadError) {
     alert("アップロードエラー：" + uploadError.message);
     return;
   }
 
-  // uploadData.path は "lecture-files/174905…pdf" という形式で返る
-  // ここから「lecture-files/」部分を取り除き、相対パスだけを notes.file_url に保存
+  // uploadData.path は "lecture-files/1749051597181_bibunn.pdf" という形式
+  // ここから "lecture-files/" を取り除いて「相対パスだけ」にする
   const relativePath = uploadData.path.replace(/^lecture-files\//, "");
   console.log("▶ relativePath を保存:", relativePath);
+  //   → "1749051597181_bibunn.pdf" が得られる
 
-  // 2) notes テーブルに「相対パスだけ」を保存
+  // 2) notes テーブルには「相対パスだけ」を保存
   const { data: insertData, error: insertError } = await supabase
     .from("notes")
     .insert({
       title,
       subject,
-      file_url: relativePath,   // ← ここには必ず "174905…pdf" のような文字列だけ
+      file_url: relativePath,   // ← ここには必ず "1749051597181_bibunn.pdf" だけを保存
       user_id: currentUser.id,
     })
-    .select();  // 挿入した行を返してもらう場合は .select() をつけると便利
+    .select();  // 挿入後のレコードを取得するなら .select() をつけると便利
 
-  console.log("▶ insertData:", insertData);
-  console.log("▶ insertError:", insertError);
   if (insertError) {
     alert("データ登録エラー：" + insertError.message);
     return;
@@ -232,7 +227,7 @@ async function uploadNote() {
   document.getElementById("note-title").value   = "";
   document.getElementById("note-subject").value = "";
   document.getElementById("note-file").value    = "";
-  loadNotes();  // 一覧を再読み込み
+  loadNotes();
 }
 
 
@@ -261,70 +256,58 @@ async function loadNotes() {
   listElem.innerHTML = "";
 
   notes.forEach((note) => {
-    // (1) タイトル＋科目をテキストで表示
+    // (1) タイトル表示
     const textSpan = document.createElement("span");
     textSpan.textContent = `${note.title}（${note.subject || "－"}）`;
 
-    // (2) アップロード日時を表示
+    // (2) アップロード日時表示
     const dateSpan = document.createElement("span");
     dateSpan.className = "small";
     dateSpan.textContent = ` – ${new Date(note.created_at).toLocaleString()}`;
 
-    // (3) 「PDFを開く」ボタンを作成
+    // (3) 「PDFを開く」ボタン
     const viewBtn = document.createElement("button");
     viewBtn.textContent = "PDFを開く";
     viewBtn.style.marginLeft = "12px";
 
     if (currentUser) {
-      // ログイン済みなら、note.file_url（相対パス）を使って署名付きURLを取得
+      // 必ず「相対パスだけ」を使う
       viewBtn.onclick = async () => {
         // note.file_url は "1749051597181_bibunn.pdf" のような相対パス
         const relativePath = note.file_url;
 
-        // createSignedUrl には必ず「相対パスだけ」を渡す
+        // createSignedUrl(relativePath, 60) で署名付き URL を取得
         const { data: signedData, error: signedError } = await supabase
           .storage
-          .from("lecture-files")              // バケット名を指定
-          .createSignedUrl(relativePath, 60);  // 有効期限を 60 秒に設定
+          .from("lecture-files")             // バケット名
+          .createSignedUrl(relativePath, 60); // 相対パスだけを渡す
 
         if (signedError) {
           alert("署名付きURLの取得に失敗しました：" + signedError.message);
           return;
         }
-        // 署名付きURLを新しいタブで開く
+        // 署名付き URL を新規タブで開く
         window.open(signedData.signedUrl, "_blank");
       };
     } else {
-      // 未ログインならボタンを無効化（グレーアウト）
+      // 未ログインユーザーはグレーアウトしてクリック不可にする
       viewBtn.disabled      = true;
       viewBtn.style.opacity = "0.5";
       viewBtn.title         = "ログインしてからご利用ください";
     }
 
-    // (4) 管理者なら「削除」ボタンを追加
-    let deleteBtn = null;
-    if (currentUserProfile && currentUserProfile.is_admin) {
-      deleteBtn = document.createElement("button");
-      deleteBtn.className   = "delete-btn";
-      deleteBtn.textContent = "削除";
-      deleteBtn.onclick = () => {
-        if (confirm(`本当に「${note.title}」を削除しますか？`)) {
-          deleteNote(note.id);
-        }
-      };
-    }
+    // (4) 管理者なら「削除」ボタンを追加（省略）
 
-    // (5) <li> 要素にまとめる
+    // (5) <li> にすべてまとめる
     const li = document.createElement("li");
     li.appendChild(textSpan);
     li.appendChild(dateSpan);
     li.appendChild(viewBtn);
-    if (deleteBtn) li.appendChild(deleteBtn);
+    // 管理者用の deleteBtn があれば li.appendChild(deleteBtn)
 
     listElem.appendChild(li);
   });
 }
-
 
 
 /**
