@@ -44,8 +44,9 @@ async function setupUI() {
   }
 }
 
-/**
- * 2) サインアップ関数
+/** 
+ * サインアップ関数をアップデート
+ *  - supabase.auth.signUp() 後、profiles テーブルに upsert でレコードを作成 
  */
 async function signUp() {
   const email    = document.getElementById("email").value;
@@ -54,13 +55,37 @@ async function signUp() {
     alert("メールアドレスとパスワードは必須です");
     return;
   }
-  const { data, error } = await supabase.auth.signUp({ email, password });
-  if (error) {
-    alert("サインアップエラー：" + error.message);
-  } else {
-    alert("登録メールを送信しました。認証リンクをクリックして完了させてください。");
+
+  // ① Supabase Auth でユーザー登録
+  const { data: signUpData, error: signUpError } = await supabase.auth.signUp({ email, password });
+  if (signUpError) {
+    alert("サインアップエラー：" + signUpError.message);
+    return;
   }
+
+  // ② サインアップが成功すると signUpData.user.id に uid が入る
+  const newUserId = signUpData.user.id;
+
+  // ③ profiles テーブルに upsert（存在すれば更新、なければ挿入）
+  const { data: profileData, error: profileError } = await supabase
+    .from("profiles")
+    .upsert({
+      id: newUserId,
+      username: email,      // 任意で「メールアドレス」をユーザー名にする
+      is_admin: false,      // デフォルトでは管理者権限なし
+    })
+    .select()
+    .single();
+  
+  if (profileError) {
+    console.error("profiles テーブル更新エラー：", profileError.message);
+    alert("サインアップは完了しましたが、プロフィール登録に失敗しました。管理者へ問い合わせてください。");
+    return;
+  }
+
+  alert("サインアップ完了！登録したメールアドレスに確認メールを送りました。リンクを踏んで認証を完了してください。");
 }
+
 
 /**
  * 3) サインイン関数
