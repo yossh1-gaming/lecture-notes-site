@@ -113,7 +113,6 @@ async function signIn() {
     .upsert({
       id: currentUser.id,
       username: email,
-      is_admin: false,
     })
     .select()        // 挿入後の行を受け取るために .select() をつける
     .single();       // 1行だけ期待する
@@ -187,7 +186,7 @@ async function uploadNote() {
     return;
   }
 
-  // ファイル名を安全化
+  // ファイル名を安全化してタイムスタンプを付与
   const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, "");
   const fileName = `${Date.now()}_${safeName}`;
   console.log("▶ uploadNote(): fileName =", fileName);
@@ -205,33 +204,22 @@ async function uploadNote() {
     return;
   }
 
-  // 2) 相対パスに変換
+  // 2) バケット名を取り除いて「相対パス」だけを取り出す
+  //    uploadData.path は "lecture-files/1749050379300_bibunn.pdf" のように返ってくる
   let relativePath = uploadData.path;
   if (relativePath.startsWith("lecture-files/")) {
     relativePath = relativePath.slice("lecture-files/".length);
   }
-  console.log("▶ getPublicUrl に渡す relativePath:", relativePath);
+  console.log("▶ relativePath:", relativePath); // 例: "1749050379300_bibunn.pdf"
 
-  // 3) 公開URLを取得
-  const urlResponse = supabase
-    .storage
-    .from("lecture-files")
-    .getPublicUrl(relativePath);
-  console.log("▶ urlResponse:", urlResponse);
-  if (urlResponse.error) {
-    alert("URL取得エラー：" + urlResponse.error.message);
-    return;
-  }
-  const publicUrl = urlResponse.data.publicUrl;
-  console.log("▶ publicUrl:", publicUrl);
-
-  // 4) notes テーブルに挿入
+  // 3) notes テーブルには「相対パスだけ」を file_url フィールドに保存する
+  //    （publicUrl を使わない）
   const { data: insertData, error: insertError } = await supabase
     .from("notes")
     .insert({
       title,
       subject,
-      file_url: publicUrl,
+      file_url: relativePath, // ここに相対パスだけを入れる
       user_id: currentUser.id,
     });
 
@@ -246,8 +234,11 @@ async function uploadNote() {
   document.getElementById("note-title").value   = "";
   document.getElementById("note-subject").value = "";
   document.getElementById("note-file").value    = "";
+
+  // 4) 再び一覧を読み込む
   loadNotes();
 }
+
 
 /**
  * 7) 講義録一覧読み込み関数
