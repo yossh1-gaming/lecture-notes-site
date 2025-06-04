@@ -4,7 +4,6 @@
   <meta charset="UTF-8" />
   <title>講義録共有サイト</title>
   <style>
-    /* 簡単な全体スタイル */
     body {
       max-width: 600px;
       margin: auto;
@@ -26,26 +25,37 @@
       padding: 0;
     }
     li {
-      margin-bottom: 8px;
+      margin-bottom: 12px;
+      padding: 8px;
+      border-bottom: 1px solid #ddd;
     }
     a {
       text-decoration: none;
       color: blue;
     }
-    /* 小さめの文字 */
     .small {
       font-size: 0.9em;
       color: gray;
+    }
+    .delete-btn {
+      margin-left: 12px;
+      background-color: #f44336;
+      color: white;
+      border: none;
+      padding: 4px 8px;
+      cursor: pointer;
+      font-size: 0.9em;
+      border-radius: 4px;
     }
   </style>
 </head>
 <body>
   <h1>講義録共有サイト</h1>
 
-  <!-- ① 認証情報表示エリア -->
+  <!-- ユーザー情報表示 -->
   <div id="user-info" style="text-align: right; margin-bottom: 10px;"></div>
 
-  <!-- ② サインアップ / ログインフォーム -->
+  <!-- サインアップ/ログインフォーム -->
   <div id="auth-forms">
     <input type="email" id="email" placeholder="メールアドレス" />
     <input type="password" id="password" placeholder="パスワード" />
@@ -53,7 +63,7 @@
     <button onclick="signIn()">ログイン</button>
   </div>
 
-  <!-- ③ アップロードフォーム（ログイン後のみ表示） -->
+  <!-- アップロードフォーム（ログイン後のみ表示） -->
   <div id="upload-section" style="display: none;">
     <input type="text" id="note-title" placeholder="講義録タイトル" />
     <input type="text" id="note-subject" placeholder="講義名（任意）" />
@@ -65,181 +75,10 @@
   </div>
 
   <h2>アップロード済み講義録一覧</h2>
-  <!-- ④ 一覧表示用 -->
-  <ul id="notes-list"></ul>
+  <ul id="notes-list">
+    <!-- ここに JavaScript で <li> を動的に追加します -->
+  </ul>
 
-  <script type="module">
-    import { supabase } from "./supabase.js";
-
-    // ━━━━━━━━━━━━━━━━━━━
-    // 認証関連の関数
-    // ━━━━━━━━━━━━━━━━━━━
-
-    // サインアップ（メール + パスワード）
-    async function signUp() {
-      const email = document.getElementById("email").value;
-      const password = document.getElementById("password").value;
-      if (!email || !password) {
-        alert("メールアドレスとパスワードを入力してください");
-        return;
-      }
-      const { error } = await supabase.auth.signUp({ email, password });
-      if (error) {
-        alert("サインアップに失敗しました： " + error.message);
-      } else {
-        alert("サインアップ成功！メールアドレスを確認してください（開発中は不要）。");
-      }
-    }
-
-    // ログイン
-    async function signIn() {
-      const email = document.getElementById("email").value;
-      const password = document.getElementById("password").value;
-      if (!email || !password) {
-        alert("メールアドレスとパスワードを入力してください");
-        return;
-      }
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) {
-        alert("ログインに失敗しました： " + error.message);
-      } else {
-        setupUser();
-      }
-    }
-
-    // ログアウト
-    async function signOut() {
-      await supabase.auth.signOut();
-      location.reload(); // ページをリロードして状態をリセット
-    }
-
-    // 認証状態をチェックし、UIを切り替える
-    async function setupUser() {
-      const { data: { user } } = await supabase.auth.getUser();
-      // user が存在すればログイン中、なければ未ログイン
-      if (user) {
-        // ログイン中
-        document.getElementById("auth-forms").style.display = "none";
-        document.getElementById("upload-section").style.display = "block";
-        document.getElementById("user-info").innerText = `ログイン中： ${user.email}`;
-      } else {
-        // 未ログイン
-        document.getElementById("auth-forms").style.display = "block";
-        document.getElementById("upload-section").style.display = "none";
-        document.getElementById("user-info").innerText = "";
-      }
-      // 毎回一覧を更新
-      loadNotes();
-    }
-
-    // 認証状態が変わったときにも setupUser を呼ぶ
-    supabase.auth.onAuthStateChange(() => {
-      setupUser();
-    });
-
-    // ページ読み込み時に認証状態をセットアップ
-    setupUser();
-
-    // ━━━━━━━━━━━━━━━━━━━
-    // アップロード＆一覧表示関連
-    // ━━━━━━━━━━━━━━━━━━━
-
-    // 講義録をアップロードする
-    async function uploadNote() {
-      const title = document.getElementById("note-title").value;
-      const subject = document.getElementById("note-subject").value;
-      const fileInput = document.getElementById("note-file");
-      const file = fileInput.files[0];
-
-      if (!title || !file) {
-        alert("講義録タイトルとファイルは必須です");
-        return;
-      }
-
-      // 現在ログイン中のユーザーを取得
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        alert("ログインしてください");
-        return;
-      }
-
-      // ファイル名にタイムスタンプを付与して重複を回避
-      const fileName = `${Date.now()}_${file.name}`;
-
-      // 1) Supabase Storage にファイルをアップロード
-      const { data: uploadData, error: uploadError } = await supabase
-        .storage
-        .from("lecture-files")
-        .upload(fileName, file);
-
-      if (uploadError) {
-        alert("ファイルアップロードに失敗しました： " + uploadError.message);
-        return;
-      }
-
-      // 2) ストレージから公開URLを取得
-      const {
-        data: { publicUrl },
-      } = supabase.storage.from("lecture-files").getPublicUrl(uploadData.path);
-
-      // 3) notes テーブルにレコードを挿入
-      const { error: insertError } = await supabase
-        .from("notes")
-        .insert({
-          title,
-          subject,
-          file_url: publicUrl,
-          user_id: user.id,
-        });
-
-      if (insertError) {
-        alert("データベースへの登録に失敗しました： " + insertError.message);
-        return;
-      }
-
-      alert("アップロード完了！");
-      // フォームをリセット
-      document.getElementById("note-title").value = "";
-      document.getElementById("note-subject").value = "";
-      fileInput.value = "";
-      // 一覧を再読み込み
-      loadNotes();
-    }
-
-    // notes テーブルから講義録一覧を取得して表示する
-    async function loadNotes() {
-      // テーブルから最新順にフェッチ
-      const { data: notes, error } = await supabase
-        .from("notes")
-        .select("*")
-        .order("created_at", { ascending: false });
-
-      if (error) {
-        console.error("一覧取得エラー：", error.message);
-        return;
-      }
-
-      const listElem = document.getElementById("notes-list");
-      listElem.innerHTML = ""; // いったんクリア
-
-      notes.forEach((note) => {
-        const li = document.createElement("li");
-        li.innerHTML = `
-          <a href="${note.file_url}" target="_blank">
-            ${note.title}（${note.subject || "－"}）
-          </a>
-          <div class="small">アップロード日時： ${new Date(
-            note.created_at
-          ).toLocaleString()}</div>
-        `;
-        listElem.appendChild(li);
-      });
-    }
-
-    window.signUp = signUp;
-    window.signIn = signIn;
-    window.signOut = signOut;
-    window.uploadNote = uploadNote;
-  </script>
+  <script type="module" src="./main.js"></script>
 </body>
 </html>
