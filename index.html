@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <title>講義録共有サイト</title>
+  <link rel="stylesheet" href="./css/styles.css" />
   <style>
     body { max-width: 600px; margin: auto; font-family: Arial, sans-serif; padding: 20px; }
     h1, h2 { text-align: center; }
@@ -18,36 +19,19 @@
 <body>
   <h1>講義録共有サイト</h1>
 
-  <!-- ログイン中のユーザー表示（ニックネームを表示するようになります） -->
   <div id="user-info" style="text-align: right; margin-bottom: 10px;"></div>
 
-  <!-- サインアップ／ログインフォーム -->
-  <div id="auth-forms">
-    <!-- ニックネーム入力欄を追加 -->
-    <input type="text" id="signup-nickname" placeholder="ニックネーム（初回登録時のみ）" />
-    <input type="email" id="email" placeholder="メールアドレス" />
-    <input type="password" id="password" placeholder="パスワード" />
-    <!-- サインアップ時は必ずニックネームを入力する -->
-    <button onclick="signUp()">新規登録</button>
-    <button onclick="signIn()">ログイン</button>
-  </div>
-
-  <!-- アップロードフォーム（ログイン後のみ表示） -->
   <div id="upload-section" style="display: none;">
     <input type="text" id="note-title" placeholder="講義録タイトル" />
     <input type="text" id="note-subject" placeholder="講義名（任意）" />
     <input type="file" id="note-file" />
-    <button onclick="uploadNote()">アップロード</button>
-    <button onclick="signOut()" style="background-color: #f44336; color: white;">
-      ログアウト
-    </button>
+    <button id="upload-btn">アップロード</button>
+    <button id="logout-btn" style="background-color: #f44336; color: white;">ログアウト</button>
   </div>
 
   <h2>アップロード済み講義録一覧</h2>
-  <ul id="notes-list">
-    <!-- 各 <li> に「タイトル」「科目」「投稿者（ニックネーム）」「日時」「PDFを開く」「削除」 が順に表示されます -->
-  </ul>
+  <ul id="notes-list"></ul>
 
-  <script type="module" src="./main.js"></script>
+  <script type="module" src="./js/main.js"></script>
 </body>
 </html>

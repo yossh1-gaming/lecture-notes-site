@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <title>新規登録 - 講義録共有サイト</title>
+  <link rel="stylesheet" href="./css/styles.css" />
+  <style>
+    /* サインアップ画面だけの簡易スタイル */
+    body { max-width: 360px; margin: auto; padding: 40px 20px; font-family: sans-serif; }
+    h1 { text-align: center; margin-bottom: 30px; }
+    input, button { display: block; width: 100%; margin-bottom: 16px; padding: 8px; box-sizing: border-box; }
+    .link { text-align: center; margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <h1>新規登録</h1>
+
+  <input type="text" id="signup-nickname" placeholder="ニックネーム" />
+  <input type="email" id="signup-email" placeholder="メールアドレス" />
+  <input type="password" id="signup-password" placeholder="パスワード" />
+  <button id="signup-btn">登録する</button>
+
+  <div class="link">
+    <!-- ログインページへのリンク -->
+    <a href="login.html">すでにアカウントをお持ちの方はこちら</a>
+  </div>
+
+  <script type="module">
+    import { signUp } from "./js/auth.js";
+
+    document.getElementById("signup-btn").onclick = async () => {
+      const nickname = document.getElementById("signup-nickname").value.trim();
+      const email    = document.getElementById("signup-email").value.trim();
+      const password = document.getElementById("signup-password").value;
+
+      try {
+        await signUp(nickname, email, password);
+        alert("登録メールを送信しました。リンクをクリックして認証を完了してください。");
+        // 登録後は login.html にリダイレクト
+        window.location.href = "login.html";
+      } catch (error) {
+        alert("登録に失敗しました： " + error.message);
+      }
+    };
+
+    // もし既にログイン済みの場合は index.html へ飛ばす
+    (async () => {
+      const { data: { session } } = await (await import("./js/auth.js")).supabase.auth.getSession();
+      if (session && session.user) {
+        window.location.href = "index.html";
+      }
+    })();
+  </script>
+</body>
+</html>
