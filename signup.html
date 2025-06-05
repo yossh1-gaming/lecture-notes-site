@@ -22,7 +22,7 @@
 
   <div class="link">
     <!-- ログインページへのリンク -->
-    <a href="login.html">すでにアカウントをお持ちの方はこちら</a>
+    <a href="index.html">すでにアカウントをお持ちの方はこちら</a>
   </div>
 
   <script type="module">
@@ -37,7 +37,7 @@
         await signUp(nickname, email, password);
         alert("登録メールを送信しました。リンクをクリックして認証を完了してください。");
         // 登録後は login.html にリダイレクト
-        window.location.href = "login.html";
+        window.location.href = "index.html";
       } catch (error) {
         alert("登録に失敗しました： " + error.message);
       }
@@ -47,7 +47,7 @@
     (async () => {
       const { data: { session } } = await (await import("./js/auth.js")).supabase.auth.getSession();
       if (session && session.user) {
-        window.location.href = "index.html";
+        window.location.href = "main.html";
       }
     })();
   </script>

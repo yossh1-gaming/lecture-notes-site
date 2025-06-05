@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <title>学術資料共有サイト</title>
+  <link rel="stylesheet" href="./css/styles.css" />
+  <style>
+    body { max-width: 600px; margin: auto; font-family: Arial, sans-serif; padding: 20px; }
+    h1, h2 { text-align: center; }
+    input, button { display: block; margin: 10px 0; width: 100%; padding: 8px; box-sizing: border-box; }
+    ul { list-style: none; padding: 0; }
+    li { margin-bottom: 12px; padding: 8px; border-bottom: 1px solid #ddd; }
+    a { text-decoration: none; color: blue; }
+    .small { font-size: 0.9em; color: gray; }
+    .delete-btn { margin-left: 12px; background-color: #f44336; color: white; border: none; padding: 4px 8px; cursor: pointer; font-size: 0.9em; border-radius: 4px; }
+    .author { font-style: italic; margin-left: 10px; color: #555; }
+  </style>
+</head>
+<body>
+  <h1>学術資料共有サイト</h1>
+
+  <div id="user-info" style="text-align: right; margin-bottom: 10px;"></div>
+
+  <div id="upload-section" style="display: none;">
+    <input type="text" id="note-title" placeholder="講義録タイトル" />
+    <input type="text" id="note-subject" placeholder="講義名（任意）" />
+    <input type="file" id="note-file" />
+    <button id="upload-btn">アップロード</button>
+    <button id="logout-btn" style="background-color: #f44336; color: white;">ログアウト</button>
+  </div>
+
+  <h2>一覧</h2>
+  <ul id="notes-list"></ul>
+
+  <script type="module" src="./js/main.js"></script>
+</body>
+</html>
