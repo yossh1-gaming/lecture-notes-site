@@ -116,8 +116,7 @@ async function signIn() {
   const { data: profileData, error: profileError } = await supabase
     .from("profiles")
     .upsert({
-      id: currentUser.id,
-      username: email,    // 本来は「メールをニックネームとしても可」だが、既にサインアップ時に nickname を設定済みなので
+      id: currentUser.id,  // 本来は「メールをニックネームとしても可」だが、既にサインアップ時に nickname を設定済みなので
                           // upsert() 時に username を省略してもよい。ただここではサインインごとに更新する例。
     })
     .select("id, username, is_admin")
