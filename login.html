@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
-  <title>ログイン - 講義録共有サイト</title>
+  <title>ログイン - 学術資料共有サイト</title>
   <link rel="stylesheet" href="./css/styles.css" />
   <style>
     /* ログイン画面だけの簡易スタイル */
@@ -41,12 +41,7 @@
     };
 
     // もし既にログイン済み（ブラウザにセッションが残っている）なら、自動で index.html へ飛ぶ
-    (async () => {
-      const { data: { session } } = await (await import("./js/auth.js")).supabase.auth.getSession();
-      if (session && session.user) {
-        window.location.href = "index.html";
-      }
-    })();
+    
   </script>
 </body>
 </html>
