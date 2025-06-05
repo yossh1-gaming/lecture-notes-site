@@ -30,7 +30,7 @@ async function setupUI() {
     await getCurrentUserProfile();
     // ニックネームが取得できていればそれを表示
     const nickname = currentUserProfile.username || "未設定のニックネーム";
-    userInfoDiv.textContent = `ログイン中：${nickname}`;
+    document.getElementById("user-info").textContent = `ログイン中：${nickname}`;
 
     authForms.style.display     = "none";
     uploadSection.style.display = "block";
