@@ -19,40 +19,44 @@ async function setupUI() {
     console.error("セッション取得エラー:", sessionError);
   }
 
-  const userInfoDiv = document.getElementById("user-info");
-  const authForms    = document.getElementById("auth-forms");
+  const userInfoDiv   = document.getElementById("user-info");
+  const authForms     = document.getElementById("auth-forms");
   const uploadSection = document.getElementById("upload-section");
   
-  // ノート一覧を常に表示するので leave notes-list visible
-
   if (session && session.user) {
     // ログイン済み
     currentUser = session.user;
-    userInfoDiv.textContent = `ログイン中: ${currentUser.email}`;
-    authForms.style.display = "none";
-    uploadSection.style.display = "block";
+    // まずプロファイルを取得し（中でニックネームを currentUserProfile にセット）
     await getCurrentUserProfile();
-    loadNotes();
+    // ニックネームが取得できていればそれを表示
+    const nickname = currentUserProfile.username || "未設定のニックネーム";
+    userInfoDiv.textContent = `ログイン中：${nickname}`;
+
+    authForms.style.display     = "none";
+    uploadSection.style.display = "block";
+    loadNotes();  // 一覧を読み込む
   } else {
     // 未ログイン
     currentUser = null;
-    userInfoDiv.textContent = "";
-    authForms.style.display = "block";
-    uploadSection.style.display = "none";
-    // 未ログイン時でも一覧は取得可能
-    loadNotes();
+    currentUserProfile = null;
+    userInfoDiv.textContent     = "";
+    authForms.style.display      = "block";
+    uploadSection.style.display  = "none";
+    loadNotes();  // 未ログインでも一覧を表示（PDFは開けない）
   }
 }
 
-/** 
- * サインアップ関数をアップデート
- *  - supabase.auth.signUp() 後、profiles テーブルに upsert でレコードを作成 
+/**
+ * 2) サインアップ関数
+ * - ニックネーム、メール、パスワードを取得し、Authとprofilesテーブルを upsert
  */
 async function signUp() {
-  const email    = document.getElementById("email").value;
+  const nickname = document.getElementById("signup-nickname").value.trim();
+  const email    = document.getElementById("email").value.trim();
   const password = document.getElementById("password").value;
-  if (!email || !password) {
-    alert("メールアドレスとパスワードは必須です");
+
+  if (!nickname || !email || !password) {
+    alert("ニックネーム、メールアドレス、パスワードはすべて必須です");
     return;
   }
 
@@ -63,70 +67,70 @@ async function signUp() {
     return;
   }
 
-  // ② サインアップが成功すると signUpData.user.id に uid が入る
+  // ② signUpData.user.id に uid が入るので、profiles テーブルに upsert
   const newUserId = signUpData.user.id;
-
-  // ③ profiles テーブルに upsert（存在すれば更新、なければ挿入）
   const { data: profileData, error: profileError } = await supabase
     .from("profiles")
     .upsert({
       id: newUserId,
-      username: email,      // 任意で「メールアドレス」をユーザー名にする
-      is_admin: false,      // デフォルトでは管理者権限なし
+      username: nickname,  // ニックネームを username カラムに保存
+      is_admin: false,     // 初期は管理者権限なし
     })
     .select()
     .single();
-  
+
   if (profileError) {
     console.error("profiles テーブル更新エラー：", profileError.message);
     alert("サインアップは完了しましたが、プロフィール登録に失敗しました。管理者へ問い合わせてください。");
     return;
   }
 
-  alert("サインアップ完了！登録したメールアドレスに確認メールを送りました。リンクを踏んで認証を完了してください。");
+  alert("サインアップ完了！メール認証を行ってからログインしてください。");
 }
 
-
-// main.js の signIn() に、サインイン成功後すぐ profiles.upsert() を追加する例
-
+/**
+ * 3) サインイン関数
+ * - メール、パスワードを取得し Auth でログイン → プロフィールがなければ upsert → UI 更新
+ */
 async function signIn() {
-  const email    = document.getElementById("email").value;
+  const email    = document.getElementById("email").value.trim();
   const password = document.getElementById("password").value;
+
   if (!email || !password) {
     alert("メールアドレスとパスワードは必須です");
     return;
   }
 
-  // ① Supabase Auth でサインインを実行
+  // ① Supabase Auth でサインイン
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
   console.log("▶ signIn(): data =", data, " error =", error);
   if (error) {
     alert("サインインエラー: " + error.message);
     return;
   }
-
   currentUser = data.user;
 
-  // ② profiles テーブルに行がなければ upsert して作成（username: email, is_admin: false）
-  const { data: upserted, error: profileError } = await supabase
+  // ② profiles テーブルに upsert
+  //    ここでは「email を使って username を更新」または挿入しますが、
+  //    管理者権限(is_admin)はここで上書きしないようにしている点に注意。
+  const { data: profileData, error: profileError } = await supabase
     .from("profiles")
     .upsert({
       id: currentUser.id,
-      username: email,
+      username: email,    // 本来は「メールをニックネームとしても可」だが、既にサインアップ時に nickname を設定済みなので
+                          // upsert() 時に username を省略してもよい。ただここではサインインごとに更新する例。
     })
-    .select()        // 挿入後の行を受け取るために .select() をつける
-    .single();       // 1行だけ期待する
+    .select("id, username, is_admin")
+    .single();
   if (profileError) {
     console.warn("profiles upsert エラー:", profileError.message);
-    // ここで止めず getCurrentUserProfile() に進める
   } else {
-    console.log("▶ profiles に upsert した結果:", upserted);
+    console.log("▶ profiles に upsert した結果:", profileData);
   }
 
-  // ③ 続けて UI をセットアップ
+  // ③ UI 更新（内部で getCurrentUserProfile() → loadNotes() が呼ばれる）
   await setupUI();
 }
-
 
 /**
  * 4) サインアウト関数
@@ -137,49 +141,54 @@ async function signOut() {
     alert("サインアウトエラー：" + error.message);
   } else {
     currentUser = null;
+    currentUserProfile = null;
     await setupUI();
   }
 }
 
 /**
  * 5) プロフィール取得関数
+ * - supabase.auth.getUser() → profiles テーブルからニックネーム & is_admin を取得
+ * - 行が存在しない場合は「{ username: null, is_admin: false }」を返す
  */
 async function getCurrentUserProfile() {
   const { data: { user }, error: userError } = await supabase.auth.getUser();
   if (userError || !user) {
     console.error("ユーザー情報の取得に失敗しました", userError);
+    currentUser = null;
+    currentUserProfile = null;
     return null;
   }
   currentUser = user;
 
-  const { data: profiles, error: profileError } = await supabase
-    .from("profiles")
-    .select("username, is_admin")
-    .eq("id", user.id)
-    .single();
-
-  if (profileError) {
-    console.error("プロフィール取得エラー", profileError);
-    return null;
+  // profiles テーブルからニックネーム & is_admin を取得
+  try {
+    const { data: profiles, error: profileError } = await supabase
+      .from("profiles")
+      .select("username, is_admin")
+      .eq("id", user.id)
+      .single();
+    if (profileError) throw profileError;
+    currentUserProfile = profiles;
+  } catch (err) {
+    console.warn("profiles テーブルに対象レコードがない、または取得失敗:", err.message);
+    currentUserProfile = { username: null, is_admin: false };
   }
 
-  currentUserProfile = profiles;
   console.log("▶ currentUserProfile:", currentUserProfile);
-  return profiles;
+  return currentUserProfile;
 }
 
 /**
  * 6) ファイルアップロード関数
+ * - 講義録タイトル・科目・ファイルを取得し、Storage にアップロード
+ * - 相対パスだけを notes.file_url に保存
  */
-// main.js の uploadNote() 全体
-// main.js の uploadNote() を次のように修正してください
-
 async function uploadNote() {
   if (!currentUser) {
     alert("ログインしてください");
     return;
   }
-
   const title   = document.getElementById("note-title").value;
   const subject = document.getElementById("note-subject").value;
   const file    = document.getElementById("note-file").files[0];
@@ -189,9 +198,10 @@ async function uploadNote() {
     return;
   }
 
-  // 安全なファイル名を生成
+  // ファイル名を半角英数字のみの safeName にして重複防止
   const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, "");
   const fileName = `${Date.now()}_${safeName}`;
+  console.log("▶ uploadNote(): fileName =", fileName);
 
   // 1) Supabase Storage にアップロード
   const { data: uploadData, error: uploadError } = await supabase
@@ -199,28 +209,32 @@ async function uploadNote() {
     .from("lecture-files")
     .upload(fileName, file);
 
+  console.log("▶ uploadData:", uploadData);
+  console.log("▶ uploadError:", uploadError);
   if (uploadError) {
     alert("アップロードエラー：" + uploadError.message);
     return;
   }
 
-  // uploadData.path は "lecture-files/1749051597181_bibunn.pdf" のように返る
-  // ここから "lecture-files/" を取り除き、相対パスだけを作成
+  // uploadData.path は "lecture-files/1749051597181_bibunn.pdf" の形式
+  // ここから「lecture-files/」を取り除き、相対パスだけにする
   const relativePath = uploadData.path.replace(/^lecture-files\//, "");
   console.log("▶ uploadNote(): relativePath を保存 =", relativePath);
-  //    → "1749051597181_bibunn.pdf" という文字列だけが得られる
+  //   → "1749051597181_bibunn.pdf" という文字列のみが得られる
 
-  // 2) notes テーブルには「相対パスだけ」を保存する
+  // 2) notes テーブルに「相対パスだけ」を挿入
   const { data: insertData, error: insertError } = await supabase
     .from("notes")
     .insert({
       title,
       subject,
-      file_url: relativePath, // ← 相対パスのみを保存
+      file_url: relativePath, // 相対パスのみを保存
       user_id: currentUser.id,
     })
-    .select(); // ← 成功後にレコードを返してもらいたいときは .select() を付ける
+    .select(); // 挿入後の行を取得したいなら .select() を付ける
 
+  console.log("▶ insertData:", insertData);
+  console.log("▶ insertError:", insertError);
   if (insertError) {
     alert("データ登録エラー：" + insertError.message);
     return;
@@ -230,13 +244,13 @@ async function uploadNote() {
   document.getElementById("note-title").value   = "";
   document.getElementById("note-subject").value = "";
   document.getElementById("note-file").value    = "";
-  loadNotes();
+  loadNotes(); // 一覧を再読み込み
 }
-
-
 
 /**
  * 7) 講義録一覧読み込み関数
+ * - notes テーブルから全レコードを取得し、<ul id="notes-list"> に <li> を追加
+ * - 各講義録にタイトル・科目・投稿者（ニックネーム）・アップロード日時・PDF開く・（管理者なら削除）を表示
  */
 async function loadNotes() {
   const { data: notes, error } = await supabase
@@ -257,48 +271,66 @@ async function loadNotes() {
   }
   listElem.innerHTML = "";
 
-  notes.forEach((note) => {
-    // 1) タイトル＋科目をテキストで表示
+  for (const note of notes) {
+    // (0) 投稿者のニックネームを取得するには、別途 profiles からフェッチする必要があるか、
+    //     クエリ時に join して取得しても良いが、ここでは手軽に「user_id から再度クエリ」を使う例を示す。
+
+    let authorNickname = "不明なユーザー";
+    try {
+      const { data: p, error: pe } = await supabase
+        .from("profiles")
+        .select("username")
+        .eq("id", note.user_id)
+        .single();
+      if (pe) throw pe;
+      authorNickname = p.username || "名無し";
+    } catch (err) {
+      console.warn("投稿者ニックネーム取得エラー:", err.message);
+    }
+
+    // (1) タイトル＋科目をテキストで表示
     const textSpan = document.createElement("span");
     textSpan.textContent = `${note.title}（${note.subject || "－"}）`;
 
-    // 2) アップロード日時を表示
+    // (2) 投稿者ニックネームを斜体で表示
+    const authorSpan = document.createElement("span");
+    authorSpan.className = "author";
+    authorSpan.textContent = `投稿者：${authorNickname}`;
+
+    // (3) アップロード日時を表示
     const dateSpan = document.createElement("span");
     dateSpan.className = "small";
     dateSpan.textContent = ` – ${new Date(note.created_at).toLocaleString()}`;
 
-    // 3) 「PDFを開く」ボタンを作成
+    // (4) 「PDFを開く」ボタンを作成
     const viewBtn = document.createElement("button");
     viewBtn.textContent = "PDFを開く";
     viewBtn.style.marginLeft = "12px";
 
     if (currentUser) {
-      // ログイン済みなら、note.file_url が相対パスだけになっているはず
+      // note.file_url はバケット内の相対パス（例："1749051597181_bibunn.pdf"）
       viewBtn.onclick = async () => {
-        const relativePath = note.file_url; // 例: "1749051597181_bibunn.pdf"
+        const relativePath = note.file_url;
         console.log("▶ createSignedUrl に渡す relativePath =", relativePath);
 
-        // createSignedUrl(relativePath, 有効期限秒) を呼ぶ
         const { data: signedData, error: signedError } = await supabase
           .storage
-          .from("lecture-files")               // バケット名
-          .createSignedUrl(relativePath, 60);   // 相対パスだけを渡す
+          .from("lecture-files")
+          .createSignedUrl(relativePath, 60);
 
         if (signedError) {
           alert("署名付きURLの取得に失敗しました：" + signedError.message);
           return;
         }
-        // 署名付きURLを新しいタブで開く
         window.open(signedData.signedUrl, "_blank");
       };
     } else {
-      // 未ログイン時はボタンを無効化
       viewBtn.disabled      = true;
       viewBtn.style.opacity = "0.5";
       viewBtn.title         = "ログインしてからご利用ください";
     }
 
-    // 4) 管理者なら「削除」ボタンを追加
+    // (5) 管理者なら「削除」ボタンを追加
     let deleteBtn = null;
     if (currentUserProfile && currentUserProfile.is_admin) {
       deleteBtn = document.createElement("button");
@@ -311,17 +343,17 @@ async function loadNotes() {
       };
     }
 
-    // 5) <li> 要素にまとめる
+    // (6) <li> 要素にまとめる
     const li = document.createElement("li");
     li.appendChild(textSpan);
+    li.appendChild(authorSpan);
     li.appendChild(dateSpan);
     li.appendChild(viewBtn);
     if (deleteBtn) li.appendChild(deleteBtn);
 
     listElem.appendChild(li);
-  });
+  }
 }
-
 
 /**
  * 8) 管理者用：講義録を削除
