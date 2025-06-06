@@ -1,47 +1,52 @@
 // js/auth.js
-import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
+import { supabase } from "./supabase.js";
 
-// ── Supabase クライアントの初期化 ──
-const SUPABASE_URL     = "https://camhjokfxzzelqlirxir.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNhbWhqb2tmeHp6ZWxxbGlyeGlyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDg4Mjc1MTYsImV4cCI6MjA2NDQwMzUxNn0.WpJ2AWmbgCWHKwxrP9EmqEO4CGT65OjQsW2YSJcVCwM"; // あなたの anon キー
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-// サインイン関数（login.html から呼び出す）
+// ── サインイン関数（index.html から呼ぶ） ──
 export async function signIn(email, password) {
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) {
-    throw error; // 呼び出し元で catch して alert する
+    throw error;
   }
   return data.user;
 }
 
-// サインアップ関数（signup.html から呼び出す）
+// ── サインアップ関数（signup.html から呼ぶ） ──
+// 「ニックネームを入力させ、Auth と profiles を upsert する」 
 export async function signUp(nickname, email, password) {
-  // 1) Supabase Auth でユーザー登録
-  const { data: signUpData, error: signUpError } = await supabase.auth.signUp({ email, password });
+  // 1) Supabase Auth 側で登録（自動で「確認メール」がユーザーのメール宛に送信される）
+  const { data: signUpData, error: signUpError } = await supabase.auth.signUp(
+    { email, password },
+    {
+      // 【補足】ここで「redirectTo」を指定すると、ユーザーが確認メールのリンクを
+      // クリックしたあとに戻ってくる URL をセットできる。必要なら使ってみてください。
+      edirectTo: "https://your-domain.com/confirm.html"
+    }
+  );
   if (signUpError) {
     throw signUpError;
   }
 
-  // 2) profiles テーブルにニックネームを upsert
+  // 2) 確認メールが送られたので、profiles テーブルにニックネームだけ先に upsert しておく
   const newUserId = signUpData.user.id;
   const { error: profileError } = await supabase
     .from("profiles")
     .upsert({
       id: newUserId,
       username: nickname,
-      is_admin: false,
+      is_admin: false,  // 初期は管理者権限なし
     });
   if (profileError) {
     throw profileError;
   }
 
-  // 3) 登録メールを送信した旨を呼び出し元で通知
+  // 3) 呼び出し元にユーザー情報を返す
   return signUpData.user;
 }
 
-// サインアウト関数（index.html から呼び出す）
+// ── サインアウト関数（main.html から呼ぶ） ──
 export async function signOut() {
   const { error } = await supabase.auth.signOut();
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
 }

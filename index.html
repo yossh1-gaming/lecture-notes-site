@@ -1,15 +1,18 @@
+<!-- index.html -->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
   <title>ログイン - 学術資料共有サイト</title>
-  <link rel="stylesheet" href="./css/styles.css" />
+  <link rel="stylesheet" href="css/styles.css" />
   <style>
     /* ログイン画面だけの簡易スタイル */
-    body { max-width: 360px; margin: auto; padding: 40px 20px; font-family: sans-serif; }
+    body { max-width: 360px; margin: auto; padding: 40px 20px; font-family: sans-serif; background: #f2f2f2; }
     h1 { text-align: center; margin-bottom: 30px; }
     input, button { display: block; width: 100%; margin-bottom: 16px; padding: 8px; box-sizing: border-box; }
     .link { text-align: center; margin-top: 10px; }
+    button { background-color: #007bff; color: #fff; border: none; border-radius: 4px; }
+    button:hover { background-color: #0056b3; }
   </style>
 </head>
 <body>
@@ -20,7 +23,6 @@
   <button id="login-btn">ログイン</button>
 
   <div class="link">
-    <!-- 新規登録へのリンク -->
     <a href="signup.html">まだアカウントをお持ちでない方はこちら</a>
   </div>
 
@@ -30,18 +32,22 @@
     document.getElementById("login-btn").onclick = async () => {
       const email    = document.getElementById("login-email").value.trim();
       const password = document.getElementById("login-password").value;
-
       try {
         await signIn(email, password);
-        // ログイン成功 → index.html にリダイレクト
+        // サインイン成功 → main.html（認証後画面）に遷移
         window.location.href = "main.html";
-      } catch (error) {
-        alert("ログインに失敗しました： " + error.message);
+      } catch (err) {
+        alert("ログインに失敗しました： " + err.message);
       }
     };
 
-    // もし既にログイン済み（ブラウザにセッションが残っている）なら、自動で index.html へ飛ぶ
-    
+    // もし既にセッション（ログイン状態）があれば自動で main.html にリダイレクトする
+    (async () => {
+      const { data: { session } } = await (await import("./js/supabase.js")).supabase.auth.getSession();
+      if (session && session.user) {
+        window.location.href = "main.html";
+      }
+    })();
   </script>
 </body>
 </html>
