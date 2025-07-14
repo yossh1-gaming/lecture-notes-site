@@ -14,6 +14,7 @@ let currentUserProfile = null;
  */
 async function setupUI() {
   const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+  console.log("▶ prod セッション:", session, "エラー:", sessionError);
   if (sessionError) {
     console.error("セッション取得エラー:", sessionError);
   }
