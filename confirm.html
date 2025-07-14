@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <title>メール認証完了</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <div class="container">
+    <h1>メール認証中…</h1>
+    <p id="status">しばらくお待ちください。</p>
+    <p><a href="index.html">ログイン画面へ戻る</a></p>
+  </div>
+
+  <script type="module">
+    import { supabase } from "./js/supabase.js";
+
+    (async () => {
+      const params = new URLSearchParams(window.location.search);
+      // メール内リンクには access_token が付与されます
+      const accessToken = params.get("access_token");
+      if (!accessToken) {
+        document.getElementById("status").textContent = "リンク情報が不正です。";
+        return;
+      }
+      // セッションをセット
+      const { error } = await supabase.auth.setSession({ access_token: accessToken });
+      if (error) {
+        document.getElementById("status").textContent = `認証に失敗しました：${error.message}`;
+      } else {
+        document.getElementById("status").textContent = "メール認証が完了しました！ログインしてください。";
+      }
+    })();
+  </script>
+</body>
+</html>

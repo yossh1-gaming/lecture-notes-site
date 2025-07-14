@@ -230,3 +230,84 @@ button:disabled {
 .comments-container button:hover {
   background: #218838;
 }
+
+/* ── 検索ボックス／フィルター ── */
+.search-container,
+.filter-container {
+  text-align: center;
+  margin: 20px 0;
+}
+
+#search-input,
+#category-filter {
+  width: 80%;
+  max-width: 400px;
+  padding: 8px 12px;
+  font-size: 1rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  transition: border-color 0.2s;
+  margin-bottom: 12px;
+}
+
+#search-input:focus,
+#category-filter:focus {
+  outline: none;
+  border-color: #66afe9;
+  box-shadow: 0 0 5px rgba(102,175,233,0.5);
+}
+
+/* ── コメント専用ページ（comments.html） ── */
+#comments-list {
+  list-style: none;
+  padding: 0;
+  margin-bottom: 16px;
+}
+#comments-list li {
+  background-color: #fff;
+  border: 1px solid #e2e2e2;
+  border-radius: 6px;
+  padding: 10px;
+  margin-bottom: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+#comment-input {
+  width: calc(100% - 100px);
+  padding: 8px 10px;
+  margin-right: 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+#comment-btn {
+  width: 80px;
+  padding: 8px;
+  background-color: #28a745;
+  color: #fff;
+  border-radius: 4px;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+#comment-btn:hover:not(:disabled) {
+  background-color: #218838;
+}
+
+/* ── お知らせページ（announcements.html） ── */
+#news-list {
+  list-style: none;
+  padding: 0;
+}
+#news-list li {
+  background-color: #fff;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 12px 16px;
+  margin-bottom: 12px;
+}
+#news-list li strong {
+  display: block;
+  font-size: 1.1rem;
+  margin-bottom: 4px;
+}

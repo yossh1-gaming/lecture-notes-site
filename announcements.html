@@ -1,0 +1,25 @@
+<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"/><title>お知らせ</title>
+<link rel="stylesheet" href="css/styles.css"/></head><body>
+<div class="container">
+  <h1>お知らせ</h1>
+  <ul id="news-list"></ul>
+  <p style="text-align:center;"><a href="main.html">一覧に戻る</a></p>
+</div>
+<script type="module">
+import { supabase } from "./js/supabase.js";
+(async()=>{
+  const { data } = await supabase
+    .from("notes")
+    .select("id,title,category,created_at")
+    .order("created_at",{ascending:false})
+    .limit(10);
+  const ul=document.getElementById("news-list");
+  data.forEach(n=>{
+    const li=document.createElement("li");
+    li.innerHTML=`<strong>${n.title}</strong> [${n.category||'未分類'}]
+      <br/>${new Date(n.created_at).toLocaleString()}`;
+    ul.appendChild(li);
+  });
+})();
+</script>
+</body></html>

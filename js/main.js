@@ -106,15 +106,9 @@ async function uploadNote() {
     alert("アップロードエラー：" + uploadError.message);
     return;
   }
-  const { data, error } = await supabase
-    .from("notes")
-    .insert({
-      title, subject, file_url: relativePath,
-      user_id: currentUser.id, category
-    });
-
-  // 2) notes テーブルに「相対パスだけ」を挿入
+ // ── ここで relativePath を計算 ──
   const relativePath = uploadData.path.replace(/^lecture-files\//, "");
+  // notes テーブルに 1 回だけ挿入
   const { data: insertData, error: insertError } = await supabase
     .from("notes")
     .insert({
@@ -122,6 +116,7 @@ async function uploadNote() {
       subject,
       file_url: relativePath,
       user_id: currentUser.id,
+      category,
     })
     .select();
   if (insertError) {
@@ -156,15 +151,16 @@ async function loadComments(noteId, commentsList) {
 /**
  * 一覧取得＆描画
  */
-async function loadNotes(searchKeyword="") {
+async function loadNotes(searchKeyword = "", categoryFilter = "") {
   let query = supabase
     .from("notes")
     .select("*")
     .order("created_at", { ascending: false });
 
-  if(searchKeyword){
-    query=query.ilike("title",'%${searchKeyword}%');
+  if (searchKeyword) {
+    query = query.ilike("title", `%${searchKeyword}%`);
   }
+  if (categoryFilter) query = query.eq("category", categoryFilter);
   const{data:notes,error}=await query;
   if (error) {
     console.error("一覧取得エラー：", error.message);
@@ -244,40 +240,15 @@ async function loadNotes(searchKeyword="") {
     li.appendChild(viewBtn);
     if (deleteBtn) li.appendChild(deleteBtn);
         // li を作ったあと、最後にコメント用 UI を追加
-    const commentsContainer = document.createElement("div");
-    commentsContainer.className = "comments-container";
+    // ── コメント専用ページへのリンクを追加 ──
+    const commentLink = document.createElement("a");
+    commentLink.href        = `comments.html?note_id=${note.id}`;
+    commentLink.textContent = "コメントを見る";
+    commentLink.className   = "comment-link";
+    li.appendChild(commentLink);
 
-    // コメント一覧用
-    const commentsList = document.createElement("ul");
-    commentsList.className = "comments-list";
-    commentsContainer.appendChild(commentsList);
-
-    // コメント入力欄＋投稿ボタン
-    const commentInput = document.createElement("input");
-    commentInput.type = "text";
-    commentInput.placeholder = "コメントを入力...";
-    commentInput.className = "comment-input";
-    commentsContainer.appendChild(commentInput);
-
-    const commentBtn = document.createElement("button");
-    commentBtn.textContent = "投稿";
-    commentBtn.onclick = async () => {
-      const content = commentInput.value.trim();
-      if (!content) return alert("コメントを入力してください");
-      await supabase
-        .from("comments")
-        .insert({ note_id: note.id, user_id: currentUser.id, content });
-      commentInput.value = "";
-      await loadComments(note.id, commentsList);
-    };
-    commentsContainer.appendChild(commentBtn);
-
-    // li の最後に追加
-    li.appendChild(commentsContainer);
-    // コメントを読み込む
-    await loadComments(note.id, commentsList);
+    // 最後に li をリストに追加
     listElem.appendChild(li);
-  }
 }
 
 async function deleteNote(noteId) {
@@ -308,7 +279,12 @@ window.addEventListener("DOMContentLoaded", async () => {
   document.getElementById("search-input")
     .addEventListener("input", async e => {
       const keyword = e.target.value.trim();
-     await loadNotes(keyword);
+      await loadNotes(keyword, document.getElementById("category-filter").value);
     });
+  document.getElementById("category-filter")
+   .addEventListener("change", async e => {
+     const cat = e.target.value;
+     await loadNotes(document.getElementById("search-input").value.trim(), cat);
+   });
 });
-
+}
