@@ -85,6 +85,7 @@ async function uploadNote() {
   const subject = document.getElementById("note-subject").value.trim();
   const fileElem = document.getElementById("note-file");
   const file    = fileElem.files[0];
+  const category = document.getElementById("note-category").value;
 
   if (!title || !file) {
     alert("タイトルとファイルを選択してください");
@@ -94,6 +95,7 @@ async function uploadNote() {
   // ファイル名を安全化しつつタイムスタンプ付与
   const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, "");
   const fileName = `${Date.now()}_${safeName}`;
+  
 
   // 1) Supabase Storage にアップロード
   const { data: uploadData, error: uploadError } = await supabase
@@ -104,6 +106,12 @@ async function uploadNote() {
     alert("アップロードエラー：" + uploadError.message);
     return;
   }
+  const { data, error } = await supabase
+    .from("notes")
+    .insert({
+      title, subject, file_url: relativePath,
+      user_id: currentUser.id, category
+    });
 
   // 2) notes テーブルに「相対パスだけ」を挿入
   const relativePath = uploadData.path.replace(/^lecture-files\//, "");
@@ -128,14 +136,36 @@ async function uploadNote() {
   loadNotes();
 }
 
+async function loadComments(noteId, commentsList) {
+  const { data: comments, error } = await supabase
+    .from("comments")
+    .select("content, created_at")
+    .eq("note_id", noteId)
+    .order("created_at", { ascending: true });
+  if (error) return console.error("コメント取得エラー：", error.message);
+
+  commentsList.innerHTML = "";
+  comments.forEach(c => {
+    const li = document.createElement("li");
+    li.textContent = `${c.content} — ${new Date(c.created_at).toLocaleString()}`;
+    commentsList.appendChild(li);
+  });
+}
+
+
 /**
  * 一覧取得＆描画
  */
-async function loadNotes() {
-  const { data: notes, error } = await supabase
+async function loadNotes(searchKeyword="") {
+  let query = supabase
     .from("notes")
     .select("*")
     .order("created_at", { ascending: false });
+
+  if(searchKeyword){
+    query=query.ilike("title",'%${searchKeyword}%');
+  }
+  const{data:notes,error}=await query;
   if (error) {
     console.error("一覧取得エラー：", error.message);
     return;
@@ -205,6 +235,7 @@ async function loadNotes() {
         }
       };
     }
+    
 
     // li にまとめて ul に追加
     li.appendChild(textSpan);
@@ -212,6 +243,39 @@ async function loadNotes() {
     li.appendChild(dateSpan);
     li.appendChild(viewBtn);
     if (deleteBtn) li.appendChild(deleteBtn);
+        // li を作ったあと、最後にコメント用 UI を追加
+    const commentsContainer = document.createElement("div");
+    commentsContainer.className = "comments-container";
+
+    // コメント一覧用
+    const commentsList = document.createElement("ul");
+    commentsList.className = "comments-list";
+    commentsContainer.appendChild(commentsList);
+
+    // コメント入力欄＋投稿ボタン
+    const commentInput = document.createElement("input");
+    commentInput.type = "text";
+    commentInput.placeholder = "コメントを入力...";
+    commentInput.className = "comment-input";
+    commentsContainer.appendChild(commentInput);
+
+    const commentBtn = document.createElement("button");
+    commentBtn.textContent = "投稿";
+    commentBtn.onclick = async () => {
+      const content = commentInput.value.trim();
+      if (!content) return alert("コメントを入力してください");
+      await supabase
+        .from("comments")
+        .insert({ note_id: note.id, user_id: currentUser.id, content });
+      commentInput.value = "";
+      await loadComments(note.id, commentsList);
+    };
+    commentsContainer.appendChild(commentBtn);
+
+    // li の最後に追加
+    li.appendChild(commentsContainer);
+    // コメントを読み込む
+    await loadComments(note.id, commentsList);
     listElem.appendChild(li);
   }
 }
@@ -235,4 +299,16 @@ async function signOut() {
   window.location.href = "index.html";
 }
 
-window.addEventListener("DOMContentLoaded", setupUI);
+window.addEventListener("DOMContentLoaded", async () => {
+  await setupUI();
+  // 初回はキーワードなしで全件表示
+  await loadNotes();
+
+  // 検索ボックスの input イベントで絞り込み
+  document.getElementById("search-input")
+    .addEventListener("input", async e => {
+      const keyword = e.target.value.trim();
+     await loadNotes(keyword);
+    });
+});
+

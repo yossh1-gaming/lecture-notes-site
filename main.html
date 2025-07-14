@@ -36,11 +36,28 @@
 
   <!-- アップロードフォーム -->
   <div id="upload-section">
+    <select id="note-category">
+      <option value="">科目を選択</option>
+      <option value="集合論">集合論</option>
+      <option value="解析学">解析学</option>
+      <option value="代数学">代数学</option>
+      <option value="幾何学">幾何学</option>
+      <option value="応用数学">応用数学</option>
+      <option value="その他">その他</option>
+    </select>
     <input type="text" id="note-title" placeholder="講義録タイトル" /><br/>
     <input type="text" id="note-subject" placeholder="講義名（任意）" /><br/>
     <input type="file" id="note-file" /><br/>
     <button id="upload-btn">アップロード</button>
     <button id="logout-btn" style="background-color: #f44336; color: white;">ログアウト</button>
+  </div>
+
+  <div id="search-container" style="text-align:center;margin:20px 0;">
+  <input
+    type="text"
+    id="search-input"
+    placeholder="タイトルで検索..."
+  />
   </div>
 
   <!-- 講義録一覧 -->
