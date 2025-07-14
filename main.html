@@ -8,7 +8,7 @@
   <style>
     /* upload-section の初期スタイル */
     #upload-section {
-      display: none;           /* setupUI() で表示される */
+      display: none; /* setupUI() でログイン後に表示される */
       background-color: #f1f1f1;
       padding: 15px;
       border-radius: 6px;
@@ -34,7 +34,7 @@
   <!-- ユーザー情報表示 -->
   <div id="user-info" style="text-align: right; margin: 0 20px 20px 0; font-size: 0.9rem;"></div>
 
-  <!-- アップロードフォーム -->
+  <!-- ❶ アップロードフォーム -->
   <div id="upload-section">
     <select id="note-category">
       <option value="">科目を選択</option>
@@ -45,43 +45,41 @@
       <option value="応用数学">応用数学</option>
       <option value="その他">その他</option>
     </select>
-    <input type="text" id="note-title" placeholder="講義録タイトル" /><br/>
-    <input type="text" id="note-subject" placeholder="講義名（任意）" /><br/>
-    <input type="file" id="note-file" /><br/>
+    <input type="text" id="note-title" placeholder="講義録タイトル" />
+    <input type="text" id="note-subject" placeholder="講義名（任意）" />
+    <input type="file" id="note-file" />
     <button id="upload-btn">アップロード</button>
     <button id="logout-btn" style="background-color: #f44336; color: white;">ログアウト</button>
   </div>
 
+  <!-- ❷ 検索 -->
   <div id="search-container" style="text-align:center;margin:20px 0;">
-  <input
-    type="text"
-    id="search-input"
-    placeholder="タイトルで検索..."
-  />
+    <input type="text" id="search-input" placeholder="タイトルで検索..." />
   </div>
-  <!-- ── ここからカテゴリー絞り込み ── -->
- <div id="filter-container" style="text-align:center;margin-bottom:20px;">
-   <select id="category-filter">
-     <option value="">すべての科目</option>
-     <option value="集合論">集合論</option>
-     <option value="解析学">解析学</option>
-     <option value="代数学">代数学</option>
-     <option value="幾何学">幾何学</option>
-     <option value="応用数学">応用数学</option>
-     <option value="その他">その他</option>
-   </select>
- </div>
+
+  <!-- ❸ カテゴリー絞り込み -->
+  <div id="filter-container" style="text-align:center;margin-bottom:20px;">
+    <select id="category-filter">
+      <option value="">すべての科目</option>
+      <option value="集合論">集合論</option>
+      <option value="解析学">解析学</option>
+      <option value="代数学">代数学</option>
+      <option value="幾何学">幾何学</option>
+      <option value="応用数学">応用数学</option>
+      <option value="その他">その他</option>
+    </select>
+  </div>
 
   <!-- 講義録一覧 -->
   <h2 style="text-align:center; margin-bottom:12px;">アップロード済み講義録一覧</h2>
   <ul id="notes-list"></ul>
 
-  <!-- ── お知らせページへのリンク ── -->
- <p style="text-align:center; margin-top:30px;">
-   <a href="announcements.html">📰 新着お知らせを見る</a>
- </p>
+  <!-- ❹ お知らせページへのリンク -->
+  <p style="text-align:center; margin-top:30px;">
+    <a href="announcements.html">📰 新着お知らせを見る</a>
+  </p>
 
-  <!-- main.js を必ず body の最後に置いておく -->
+  <!-- メインのスクリプト -->
   <script type="module" src="js/main.js"></script>
 </body>
 </html>
