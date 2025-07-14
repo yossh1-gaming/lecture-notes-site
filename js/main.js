@@ -250,7 +250,9 @@ async function loadNotes(searchKeyword = "", categoryFilter = "") {
 
     // 最後に li をリストに追加
     listElem.appendChild(li);
+  }
 }
+
 
 async function deleteNote(noteId) {
   const { error } = await supabase
@@ -287,5 +289,4 @@ window.addEventListener("DOMContentLoaded", async () => {
      const cat = e.target.value;
      await loadNotes(document.getElementById("search-input").value.trim(), cat);
    });
-});
-}
+})
