@@ -41,8 +41,6 @@ async function setupUI() {
   document.getElementById("upload-btn").onclick   = uploadNote;
   document.getElementById("logout-btn").onclick   = signOut;
 
-  // 講義録一覧を取得して描画
-  loadNotes();
 }
 
 /**
