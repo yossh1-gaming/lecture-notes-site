@@ -311,3 +311,24 @@ button:disabled {
   font-size: 1.1rem;
   margin-bottom: 4px;
 }
+.site-header {
+  text-align: center;
+  margin-top: 20px;
+}
+
+.logo-svg {
+  width: 260px;
+  height: auto;
+}
+
+.logo-text {
+  font-family: 'Great Vibes', cursive;
+  font-size: 48px;
+  fill: black;
+  letter-spacing:1px;
+  transition: fill 0.3s ease;
+}
+
+.logo-text:hover {
+  fill: #444;
+}

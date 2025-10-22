@@ -76,60 +76,47 @@ async function getCurrentUserProfile() {
  * アップロード処理
  */
 async function uploadNote() {
-  if (!currentUser) {
-    alert("ログインしてください");
-    return;
-  }
+  if (!currentUser) return alert("ログインしてください");
 
-  const title   = document.getElementById("note-title").value.trim();
+  const title = document.getElementById("note-title").value.trim();
   const subject = document.getElementById("note-subject").value.trim();
-  const fileElem = document.getElementById("note-file");
-  const file    = fileElem.files[0];
   const category = document.getElementById("note-category").value;
+  const file = document.getElementById("note-file").files[0];
+  if (!title || !file) return alert("タイトルとファイルは必須です");
 
-  if (!title || !file) {
-    alert("タイトルとファイルを選択してください");
-    return;
-  }
-
-  // ファイル名を安全化しつつタイムスタンプ付与
-  const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, "");
-  const fileName = `${Date.now()}_${safeName}`;
-  
-
-  // 1) Supabase Storage にアップロード
-  const { data: uploadData, error: uploadError } = await supabase
-    .storage
-    .from("lecture-files")
-    .upload(fileName, file);
-  if (uploadError) {
-    alert("アップロードエラー：" + uploadError.message);
-    return;
-  }
- // ── ここで relativePath を計算 ──
-  const relativePath = uploadData.path.replace(/^lecture-files\//, "");
-  // notes テーブルに 1 回だけ挿入
-  const { data: insertData, error: insertError } = await supabase
+  // 1) まず行を作って id を取得
+  const { data: inserted, error: insErr } = await supabase
     .from("notes")
-    .insert({
-      title,
-      subject,
-      file_url: relativePath,
-      user_id: currentUser.id,
-      category,
-    })
-    .select();
-  if (insertError) {
-    alert("データ登録エラー：" + insertError.message);
-    return;
-  }
+    .insert({ title, subject, category, user_id: currentUser.id })
+    .select("id")
+    .single();
+  if (insErr) return alert("ノート作成エラー: " + insErr.message);
+
+  const id = inserted.id;
+  const path = `notes/${id}.pdf`;                     // ← 固定キー
+  const bucket = supabase.storage.from("lecture-files");
+
+  // 2) 上書きアップロード（常に同じキーに保存）
+  const { error: upErr } = await bucket.upload(path, file, {
+    contentType: "application/pdf",
+    upsert: true,                                     // ← 重要：上書き
+  });
+  if (upErr) return alert("アップロード失敗: " + upErr.message);
+
+  // 3) file_url を固定パスで更新
+  const { error: updErr } = await supabase
+    .from("notes")
+    .update({ file_url: path })
+    .eq("id", id);
+  if (updErr) return alert("URL更新失敗: " + updErr.message);
 
   alert("アップロード完了！");
-  document.getElementById("note-title").value   = "";
+  document.getElementById("note-title").value = "";
   document.getElementById("note-subject").value = "";
-  document.getElementById("note-file").value    = "";
+  document.getElementById("note-file").value = "";
   loadNotes();
 }
+
 
 async function loadComments(noteId, commentsList) {
   const { data: comments, error } = await supabase
@@ -201,23 +188,8 @@ async function loadNotes(searchKeyword = "", categoryFilter = "") {
     // PDFを開くボタン
     const viewBtn = document.createElement("button");
     viewBtn.textContent = "PDFを開く";
-    if (currentUser) {
-      viewBtn.onclick = async () => {
-        const { data: signedData, error: signedError } = await supabase
-          .storage
-          .from("lecture-files")
-          .createSignedUrl(note.file_url, 60);
-        if (signedError) {
-          alert("URL取得エラー：" + signedError.message);
-          return;
-        }
-        window.open(signedData.signedUrl, "_blank");
-      };
-    } else {
-      viewBtn.disabled      = true;
-      viewBtn.style.opacity = "0.5";
-      viewBtn.title         = "ログインしてからご利用ください";
-    }
+    const fileUrl='${SUPABASE_URL}/storage/v1/object/public/lecture-files/${note.file_url}';
+    viewBtn.onclick=()=>window.open(fileUrl,"_blank");
 
     // 削除ボタン（管理者のみ）
     let deleteBtn = null;
