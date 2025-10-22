@@ -1,25 +1,34 @@
-<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"/><title>お知らせ</title>
-<link rel="stylesheet" href="css/styles.css"/></head><body>
-<div class="container">
-  <h1>お知らせ</h1>
-  <ul id="news-list"></ul>
-  <p style="text-align:center;"><a href="main.html">一覧に戻る</a></p>
-</div>
-<script type="module">
-import { supabase } from "./js/supabase.js";
-(async()=>{
-  const { data } = await supabase
-    .from("notes")
-    .select("id,title,category,created_at")
-    .order("created_at",{ascending:false})
-    .limit(10);
-  const ul=document.getElementById("news-list");
-  data.forEach(n=>{
-    const li=document.createElement("li");
-    li.innerHTML=`<strong>${n.title}</strong> [${n.category||'未分類'}]
-      <br/>${new Date(n.created_at).toLocaleString()}`;
-    ul.appendChild(li);
-  });
-})();
-</script>
-</body></html>
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <title>新着お知らせ</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body style="max-width:760px;margin:30px auto;">
+  <h1>新着お知らせ</h1>
+  <p><a href="main.html">← 一覧に戻る</a></p>
+  <ul id="news"></ul>
+
+  <script type="module">
+    import { supabase } from "./js/supabase.js";
+    const ul = document.getElementById("news");
+    const { data, error } = await supabase
+      .from("notes")
+      .select("id, title, created_at, user_id, profiles:profiles(username)")
+      .order("created_at", { ascending: false })
+      .limit(30);
+    if (error) {
+      ul.innerHTML = "<li>読み込みに失敗しました</li>";
+    } else {
+      ul.innerHTML = "";
+      (data || []).forEach(n => {
+        const name = n.profiles?.username || "名無し";
+        const li = document.createElement("li");
+        li.innerHTML = `📰 ${new Date(n.created_at).toLocaleString()} — <strong>${n.title}</strong>（投稿者：${name}） <a href="comments.html?note_id=${n.id}">コメントを見る</a>`;
+        ul.appendChild(li);
+      });
+    }
+  </script>
+</body>
+</html>

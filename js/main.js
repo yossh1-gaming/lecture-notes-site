@@ -22,24 +22,25 @@ async function setupUI() {
   const userInfoDiv   = document.getElementById("user-info");
   const uploadSection = document.getElementById("upload-section");
 
-  if (!session || !session.user) {
-    // 未ログインなら index.html に遷移
-    window.location.href = "index.html";
-    return;
+  if (session && session.user) {
+    // ログイン中：プロフィール反映＆アップロード欄を表示
+    currentUser = session.user;
+    await getCurrentUserProfile();
+    const nickname = currentUserProfile.username || "未設定ニックネーム";
+    userInfoDiv.textContent = `ログイン中：${nickname}`;
+    uploadSection.style.display = "block";
+    document.getElementById("upload-btn").onclick = uploadNote;
+    document.getElementById("logout-btn").onclick = signOut;
+  } else {
+    // ゲスト：一覧のみ見せる（PDF/アップロード不可）
+    currentUser = null;
+    currentUserProfile = null;
+    userInfoDiv.textContent = "ゲスト閲覧中";
+    uploadSection.style.display = "none";
   }
 
-  // ログイン済みの場合
-  currentUser = session.user;
-
-  // プロフィール取得／ニックネームを表示
-  await getCurrentUserProfile();
-  const nickname = currentUserProfile.username || "未設定ニックネーム";
-  userInfoDiv.textContent = `ログイン中：${nickname}`;
-
-  // アップロードフォームを表示し、ボタンにイベントをバインド
-  uploadSection.style.display = "block";
-  document.getElementById("upload-btn").onclick   = uploadNote;
-  document.getElementById("logout-btn").onclick   = signOut;
+  // 誰でも一覧は表示（初回1回だけ）
+  await loadNotes();
 
 }
 
@@ -273,8 +274,6 @@ async function signOut() {
 
 window.addEventListener("DOMContentLoaded", async () => {
   await setupUI();
-  // 初回はキーワードなしで全件表示
-  await loadNotes();
 
   // 検索ボックスの input イベントで絞り込み
   document.getElementById("search-input")
