@@ -4,19 +4,30 @@ let noteId = null;
 let user = null;
 
 async function init() {
-  // セッション取得
-  const { data: { session } } = await supabase.auth.getSession();
-  user = session?.user || null;
+  // DOM取得（nullガード）
+  const ul   = document.getElementById("comments-list");
+  const form = document.getElementById("comment-form");
+  const btn  = document.getElementById("comment-btn");
+  const input= document.getElementById("comment-input");
+  if (!ul || !form || !btn || !input) {
+    console.error("必要なDOMが見つかりません");
+    return;
+  }
+
+  // セッション取得（失敗してもゲスト閲覧は続行）
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    user = session?.user || null;
+  } catch (e) {
+    console.warn("getSession 失敗:", e);
+    user = null;
+  }
 
   // note_id 取得
-  const sp = new URLSearchParams(location.search);
-  noteId = sp.get("note_id");
-
-  const ul = document.getElementById("comments-list");
-  const form = document.getElementById("comment-form");
-
+  noteId = new URLSearchParams(location.search).get("note_id");
   if (!noteId) {
     ul.innerHTML = "<li>note_id がありません</li>";
+    form.style.display = "none";
     return;
   }
 
@@ -27,14 +38,17 @@ async function init() {
   await loadComments();
 
   // 投稿
-  document.getElementById("comment-btn").onclick = postComment;
+  btn.onclick = postComment;
 }
 
 async function loadComments() {
   const ul = document.getElementById("comments-list");
+  ul.innerHTML = "<li>読み込み中...</li>";
+
   const { data, error } = await supabase
     .from("comments")
-    .select("content,created_at,profiles!comments_user_id_fkey(username)")
+    // FKが comments.user_id -> profiles.id で張ってあればこれでOK
+    .select("content, created_at, profiles(username)")
     .eq("note_id", noteId)
     .order("created_at", { ascending: true });
 
@@ -43,26 +57,41 @@ async function loadComments() {
     ul.innerHTML = "<li>読み込みに失敗しました</li>";
     return;
   }
+
   ul.innerHTML = "";
-  data.forEach(c => {
-    const li = document.createElement("li");
-    const who = c.profiles?.username || "ゲスト";
+  if (!data || data.length === 0) {
+    ul.innerHTML = "<li>まだコメントはありません</li>";
+    return;
+  }
+
+  for (const c of data) {
+    const li  = document.createElement("li");
+    const who = (c.profiles && c.profiles.username) ? c.profiles.username : "（不明）";
+    // textContent を使ってXSS対策
     li.textContent = `${who}: ${c.content} — ${new Date(c.created_at).toLocaleString()}`;
     ul.appendChild(li);
-  });
+  }
 }
 
 async function postComment() {
   const input = document.getElementById("comment-input");
   const content = input.value.trim();
-  if (!user) return alert("ログインしてください");
+
+  if (!user) {
+    alert("ログインしてください");
+    return;
+  }
   if (!content) return;
 
   const { error } = await supabase
     .from("comments")
     .insert({ note_id: noteId, user_id: user.id, content });
 
-  if (error) return alert("投稿失敗: " + error.message);
+  if (error) {
+    alert("投稿失敗: " + error.message);
+    return;
+  }
+
   input.value = "";
   await loadComments();
 }

@@ -3,6 +3,8 @@ import { supabase } from "./supabase.js";
 const ul = document.getElementById("ann-list");
 
 async function loadAnnouncements() {
+  // ✅ まず、ゲスト（未ログイン）でも読み込めるように
+  // RLS で "SELECT to public" を許可しておく必要あり
   const { data, error } = await supabase
     .from("announcements")
     .select("title, body, created_at")
@@ -10,16 +12,28 @@ async function loadAnnouncements() {
     .limit(30);
 
   if (error) {
-    console.error("ann load error:", error.message);
-    ul.innerHTML = "<li>読み込みに失敗しました</li>";
+    console.error("📛 読み込みエラー:", error.message);
+    ul.innerHTML = `<li>読み込みに失敗しました (${error.message})</li>`;
     return;
   }
 
+  if (!data || data.length === 0) {
+    ul.innerHTML = "<li>お知らせはまだありません。</li>";
+    return;
+  }
+
+  // ✅ 一覧をクリアして追加
   ul.innerHTML = "";
-  data.forEach(a => {
+  data.forEach((a) => {
     const li = document.createElement("li");
-    li.innerHTML = `<b>${a.title}</b> — ${new Date(a.created_at).toLocaleString()}<br>${a.body}`;
+    li.innerHTML = `
+      <strong>${a.title}</strong><br>
+      <small>${new Date(a.created_at).toLocaleString()}</small><br>
+      ${a.body}
+    `;
+    li.style.marginBottom = "12px";
     ul.appendChild(li);
   });
 }
+
 window.addEventListener("DOMContentLoaded", loadAnnouncements);

@@ -188,8 +188,15 @@ async function loadNotes(searchKeyword = "", categoryFilter = "") {
     // PDFを開くボタン
     const viewBtn = document.createElement("button");
     viewBtn.textContent = "PDFを開く";
-    const fileUrl='${SUPABASE_URL}/storage/v1/object/public/lecture-files/${note.file_url}';
-    viewBtn.onclick=()=>window.open(fileUrl,"_blank");
+    const {data:pub}=supabase
+      .storage
+      .from("lecture-files")
+      .getPublicUrl(note.file_url);
+    const fileUrl=pub?.publicUrl;
+    viewBtn.onclick = () => {
+      if(!fileUrl) return alert("公開URLを取得できませんでした。");
+      window.open(fileUrl,"_blank");
+    }
 
     // 削除ボタン（管理者のみ）
     let deleteBtn = null;
@@ -246,6 +253,7 @@ async function signOut() {
 
 window.addEventListener("DOMContentLoaded", async () => {
   await setupUI();
+  await loadNotes();
 
   // 検索ボックスの input イベントで絞り込み
   document.getElementById("search-input")
