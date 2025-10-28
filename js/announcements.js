@@ -1,17 +1,24 @@
 import { supabase } from "./supabase.js";
 
+const ul = document.getElementById("ann-list");
+
 async function loadAnnouncements() {
   const { data, error } = await supabase
     .from("announcements")
-    .select("*")
-    .order("created_at", { ascending: false });
-  if (error) return console.error(error);
+    .select("title, body, created_at")
+    .order("created_at", { ascending: false })
+    .limit(30);
 
-  const ul = document.getElementById("ann-list");
+  if (error) {
+    console.error("ann load error:", error.message);
+    ul.innerHTML = "<li>読み込みに失敗しました</li>";
+    return;
+  }
+
   ul.innerHTML = "";
-  data.forEach(n => {
+  data.forEach(a => {
     const li = document.createElement("li");
-    li.innerHTML = `<strong>${n.title}</strong> — ${new Date(n.created_at).toLocaleString()}<br>${n.body}`;
+    li.innerHTML = `<b>${a.title}</b> — ${new Date(a.created_at).toLocaleString()}<br>${a.body}`;
     ul.appendChild(li);
   });
 }
