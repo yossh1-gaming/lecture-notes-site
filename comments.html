@@ -26,7 +26,38 @@
     <p style="margin-top:18px"><a href="main.html">← 一覧に戻る</a></p>
   </div>
 
-  <script type="module" src="js/supabase.js"></script>
-  <script type="module" src="js/comments.js"></script>
+  <!-- ↓↓↓ これを comments.html の一番下に貼る（既存の <script type="module" ...> は消す） -->
+<script>
+  (async () => {
+    const log = (m, o) => { console.log("[BOOT]", m, o||""); };
+    const hint = document.getElementById("comment-hint");
+    const say  = (m) => { if (hint) hint.textContent = "DEBUG: " + m; };
+
+    try {
+      log("DOM ready", {
+        list:  !!document.getElementById("comments-list"),
+        input: !!document.getElementById("comment-input"),
+        btn:   !!document.getElementById("comment-btn"),
+        hint:  !!hint,
+      });
+      say("booting…");
+
+      // ① supabase.js を先に
+      await import("./js/supabase.js?v=boot1");
+      log("supabase.js imported");
+      say("supabase loaded");
+
+      // ② comments.js を動的読み込み（失敗時のエラーを可視化）
+      await import("./js/comments.js?v=boot1");
+      log("comments.js imported OK");
+      say("comments.js loaded OK");
+    } catch (e) {
+      console.error("IMPORT FAILED:", e);
+      alert("comments.js import error: " + (e && e.message));
+      say("import error: " + (e && e.message));
+    }
+  })();
+</script>
+
 </body>
 </html>
