@@ -1,6 +1,10 @@
 // js/comments.js
 import { supabase, isAdmin } from "./supabase.js";
 
+function debug(msg, obj) {
+  console.log("[DEBUG]", msg, obj ?? "");
+  if (hintEl) hintEl.textContent = `DEBUG: ${msg} ${obj ? JSON.stringify(obj) : ""}`;
+}
 const $ = (id) => document.getElementById(id);
 
 // --- note_id を厳密に（数値 or UUID どちらにも対応） ---
@@ -21,10 +25,12 @@ function showErrorOnList(msg) {
 }
 
 async function initAuth() {
-    const { data: { user }} = await supabase.auth.getUser();
-    me = user || null;
-    try { admin = await isAdmin(); } catch { admin = false; }
-  }
+  const { data: { user }} = await supabase.auth.getUser();
+  me = user || null;
+  debug("initAuth", { user: !!user, userId: user?.id || null });
+  try { admin = await isAdmin(); } catch { admin = false; }
+  debug("isAdmin", { admin });
+}
 
 
 function setFormState() {
@@ -54,6 +60,7 @@ async function loadNoteInfo() {
   } catch {}
 }
 
+
 async function loadComments() {
   if (!noteId) {
     showErrorOnList("note_id がありません。URLを確認してください。");
@@ -61,12 +68,13 @@ async function loadComments() {
   }
 
   try {
+    debug("loadComments.start", { noteId, type: typeof noteId });
     const { data, error } = await supabase
       .from("comments")
       .select("id, note_id, user_id, author_name, content, created_at")
       .eq("note_id", noteId)
       .order("created_at", { ascending: true });
-
+    debug("comments.result", { rows: data?.length ?? 0, error: error?.message || null });
     listEl.innerHTML = "";
     if (error) {
       console.error("comments select error:", error);
