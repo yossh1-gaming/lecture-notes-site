@@ -1,5 +1,16 @@
 // js/comments.js
 import { supabase } from "./supabase.js";
+import { isAdmin } from "./supabase.js";
+
+let admin = false;
+let me = null;
+
+/* ===== 認証状態の取得 ===== */
+async function initAuthState() {
+  const { data: { user } } = await supabase.auth.getUser();
+  me = user || null;
+  admin = await isAdmin();
+}
 
 /* ===== ヘルパ ===== */
 function getParam(name) {
@@ -27,13 +38,18 @@ if (!noteId) {
 /* ===== ノート情報（任意） ===== */
 async function loadNoteInfo() {
   if (!noteId) return;
-  const { data, error } = await supabase.from("notes").select("title, subject, author_name, created_at").eq("id", noteId).single();
+  const { data, error } = await supabase
+    .from("notes")
+    .select("title, subject, author_name, created_at")
+    .eq("id", noteId)
+    .single();
   if (error) return; // 表示は必須でないので無視
+
   const s = [];
-  if (data.title) s.push(`タイトル: ${data.title}`);
-  if (data.subject) s.push(`科目: ${data.subject}`);
+  if (data.title)       s.push(`タイトル: ${data.title}`);
+  if (data.subject)     s.push(`科目: ${data.subject}`);
   if (data.author_name) s.push(`投稿者: ${data.author_name}`);
-  if (data.created_at) s.push(`投稿日: ${fmt(data.created_at)}`);
+  if (data.created_at)  s.push(`投稿日: ${fmt(data.created_at)}`);
   noteInfoEl.textContent = s.join(" / ");
 }
 
@@ -42,7 +58,7 @@ async function loadComments() {
   if (!noteId) return;
   const { data: comments, error } = await supabase
     .from("comments")
-    .select("author_name, content, created_at")
+    .select("id, user_id, author_name, content, created_at") // ← id/user_id も取得
     .eq("note_id", noteId)
     .order("created_at", { ascending: true });
 
@@ -58,9 +74,32 @@ async function loadComments() {
   }
 
   for (const c of comments) {
-    const li = document.createElement("li");
-    const who = c.author_name || "名無し";  
-    li.textContent = `${who}: ${c.content} — ${fmt(c.created_at)}`;
+    const li  = document.createElement("li");
+    const who = c.author_name || "名無し";
+
+    const text = document.createElement("span");
+    text.textContent = `${who}: ${c.content} — ${fmt(c.created_at)}`;
+    li.appendChild(text);
+
+    // 管理者 or 自分のコメントにだけ「削除」ボタンを表示
+    const canDelete = admin || (me && me.id === c.user_id);
+    if (canDelete) {
+      const del = document.createElement("button");
+      del.textContent = "削除";
+      del.className   = "delete-btn";
+      del.style.marginLeft = "8px";
+      del.onclick = async () => {
+        if (!confirm("このコメントを削除しますか？")) return;
+        const { error: delErr } = await supabase
+          .from("comments")
+          .delete()
+          .eq("id", c.id);
+        if (delErr) return alert("削除に失敗しました：" + delErr.message);
+        await loadComments();
+      };
+      li.appendChild(del);
+    }
+
     commentsList.appendChild(li);
   }
 }
@@ -74,7 +113,7 @@ async function postComment() {
   const content = (inputEl.value || "").trim();
   if (!content) return;
 
-  // 投稿者名を取得（自分のprofilesはRLS的に読めます）
+  // 投稿者名を取得（自分のprofilesはRLS的に読める）
   let authorName = null;
   try {
     const { data: p } = await supabase
@@ -106,18 +145,21 @@ async function postComment() {
 async function setFormStateByAuth() {
   const { data: { user } } = await supabase.auth.getUser();
   const authed = !!user;
-
   postBtn.disabled = !authed || !noteId;
   inputEl.disabled = !authed || !noteId;
-
   hintEl.textContent = authed ? "※ コメントは公開されます。" : "※ ログインするとコメントを投稿できます。";
 }
 
 /* auth 状態変化でも切替 */
-supabase.auth.onAuthStateChange(() => setFormStateByAuth());
+supabase.auth.onAuthStateChange(async () => {
+  await initAuthState();
+  await setFormStateByAuth();
+  await loadComments(); // 状態が変わったら一覧も更新（削除ボタンの可否が変わるため）
+});
 
 /* ===== 初期化 ===== */
 window.addEventListener("DOMContentLoaded", async () => {
+  await initAuthState();
   await setFormStateByAuth();
   await loadNoteInfo();
   await loadComments();
