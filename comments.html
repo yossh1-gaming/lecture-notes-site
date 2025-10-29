@@ -3,21 +3,18 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Comments</title>
+  <title>コメント</title>
   <link rel="stylesheet" href="css/styles.css" />
 </head>
 <body>
   <div class="login-signup" style="max-width:720px">
     <h1>コメント</h1>
 
-    <!-- ノート情報（任意表示） -->
     <div id="note-info" class="small" style="margin:8px 0 16px;color:#555"></div>
 
-    <!-- 一覧 -->
     <ul id="comments-list"></ul>
 
-    <!-- 投稿フォーム（ログイン時のみ有効化） -->
-    <!-- ※ formにしない（submitでリロードを防ぐ）＆ buttonは必ず type="button" -->
+    <!-- formにしない／buttonはtype="button" -->
     <div style="display:flex;align-items:center;gap:8px;">
       <input id="comment-input" class="comment-input" type="text" placeholder="コメントを入力…" />
       <button id="comment-btn" type="button" disabled>投稿</button>
@@ -29,7 +26,6 @@
     <p style="margin-top:18px"><a href="main.html">← 一覧に戻る</a></p>
   </div>
 
-  <!-- 既存 supabase.js / isAdmin() を利用 -->
   <script type="module" src="js/supabase.js"></script>
   <script type="module" src="js/comments.js"></script>
 </body>
