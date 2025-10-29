@@ -171,7 +171,11 @@ supabase.auth.onAuthStateChange(async () => {
 
 // 初期化：必ず「認証→UI→イベント→ノート情報→一覧」
 window.addEventListener("DOMContentLoaded", async () => {
-  if (!noteId) showErrorOnList("note_id がありません。URLを確認してください。");
+  if (!noteId) {showErrorOnList("note_id がありません。URLを確認してください。");
+    if(postBtn)postBtn.disabled=true;
+    if(inputEl)inputEl.disabled=true;
+    return;
+  }
   await initAuth();
   setFormState();
   bindEventsOnce();
