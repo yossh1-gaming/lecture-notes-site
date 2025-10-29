@@ -177,16 +177,34 @@ supabase.auth.onAuthStateChange(async () => {
   await loadComments();
 });
 
-// 初期化：必ず「認証→UI→イベント→ノート情報→一覧」
-window.addEventListener("DOMContentLoaded", async () => {
-  if (!noteId) {showErrorOnList("note_id がありません。URLを確認してください。");
-    if(postBtn)postBtn.disabled=true;
-    if(inputEl)inputEl.disabled=true;
+async function boot() {
+  if (!noteId) {
+    showErrorOnList("note_id がありません。URLを確認してください。");
+    if (postBtn) postBtn.disabled = true;
+    if (inputEl) inputEl.disabled = true;
     return;
   }
+  await initAuth();      // me / admin を取得（失敗は握りつぶし済み）
+  setFormState();        // ボタンの enable/disable
+  bindEventsOnce();      // クリック/Enter投稿
+  await loadNoteInfo();  // 上部のノート情報
+  await loadComments();  // 一覧の描画
+}
+
+// ★ DOMの状態に関わらず初期化を必ず実行
+if (document.readyState === "loading") {
+  window.addEventListener("DOMContentLoaded", boot);
+} else {
+  boot(); // ← 既に読み込み済みなら即実行
+}
+
+// 認証変化でも毎回再描画（ログイン/ログアウト直後の空白を防ぐ）
+supabase.auth.onAuthStateChange(async () => {
   await initAuth();
   setFormState();
-  bindEventsOnce();
-  await loadNoteInfo();
   await loadComments();
 });
+
+// ついでの全域エラーハンドラ（原因の可視化）
+window.addEventListener("error", (e) => console.error("[GlobalError]", e.message, e.filename, e.lineno));
+window.addEventListener("unhandledrejection", (e) => console.error("[UnhandledRejection]", e.reason));
