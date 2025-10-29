@@ -87,7 +87,7 @@ async function loadComments() {
       const li = document.createElement("li");
       li.textContent = `${c.author_name || "名無し"}: ${c.content} — ${new Date(c.created_at).toLocaleString()}`;
 
-      if (admin || (me && me.id === c.user_id)) {
+      if (admin) {
         const del = document.createElement("button");
         del.textContent = "削除";
         del.className   = "delete-btn";
