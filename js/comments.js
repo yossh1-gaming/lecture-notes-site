@@ -48,7 +48,7 @@ async function loadComments() {
   const { data, error } = await supabase
     .from("comments")
     // FKが comments.user_id -> profiles.id で張ってあればこれでOK
-    .select("content, created_at, profiles(username)")
+    .select("content, created_at, user_id")
     .eq("note_id", noteId)
     .order("created_at", { ascending: true });
 
@@ -66,9 +66,7 @@ async function loadComments() {
 
   for (const c of data) {
     const li  = document.createElement("li");
-    const who = (c.profiles && c.profiles.username) ? c.profiles.username : "（不明）";
-    // textContent を使ってXSS対策
-    li.textContent = `${who}: ${c.content} — ${new Date(c.created_at).toLocaleString()}`;
+    li.textContent = `${c.content} — ${new Date(c.created_at).toLocaleString()}`;
     ul.appendChild(li);
   }
 }

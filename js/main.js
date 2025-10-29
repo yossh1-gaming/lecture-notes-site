@@ -139,16 +139,27 @@ async function uploadNote() {
 
 
 
+// ---- コメント一覧（個別ページや将来の拡張で利用） ----
 async function loadComments(noteId, commentsList) {
   const { data: comments, error } = await supabase
     .from("comments")
     .select("content, created_at")
     .eq("note_id", noteId)
     .order("created_at", { ascending: true });
-  if (error) return console.error("コメント取得エラー：", error.message);
+
+  if (error) {
+    console.error("コメント取得エラー：", error.message);
+    commentsList.innerHTML = "<li>読み込みに失敗しました</li>";
+    return;
+  }
 
   commentsList.innerHTML = "";
-  comments.forEach(c => {
+  if (!comments || comments.length === 0) {
+    commentsList.innerHTML = "<li>まだコメントはありません</li>";
+    return;
+  }
+
+  comments.forEach((c) => {
     const li = document.createElement("li");
     li.textContent = `${c.content} — ${new Date(c.created_at).toLocaleString()}`;
     commentsList.appendChild(li);
@@ -156,9 +167,7 @@ async function loadComments(noteId, commentsList) {
 }
 
 
-/**
- * 一覧取得＆描画
- */
+// ---- 一覧取得＆描画 ----
 async function loadNotes(searchKeyword = "", categoryFilter = "") {
   let query = supabase
     .from("notes")
@@ -168,8 +177,11 @@ async function loadNotes(searchKeyword = "", categoryFilter = "") {
   if (searchKeyword) {
     query = query.ilike("title", `%${searchKeyword}%`);
   }
-  if (categoryFilter) query = query.eq("category", categoryFilter);
-  const{data:notes,error}=await query;
+  if (categoryFilter) {
+    query = query.eq("category", categoryFilter);
+  }
+
+  const { data: notes, error } = await query;
   if (error) {
     console.error("一覧取得エラー：", error.message);
     return;
@@ -178,49 +190,58 @@ async function loadNotes(searchKeyword = "", categoryFilter = "") {
   const listElem = document.getElementById("notes-list");
   listElem.innerHTML = "";
 
-  for (const note of notes) {
-    // 投稿者ニックネームを取得
-    let authorNickname = "不明";
-    try {
-      const { data: p, error: pe } = await supabase
-        .from("profiles")
-        .select("username")
-        .eq("id", note.user_id)
-        .single();
-      if (pe) throw pe;
-      authorNickname = p.username || "名無し";
-    } catch {
-      // 無視
-    }
+  if (!notes || notes.length === 0) {
+    listElem.innerHTML = "<li>投稿はまだありません</li>";
+    return;
+  }
 
-    // li 要素を作成
+  // 現在ログインしているユーザー（投稿者表示の簡略化に使用）
+  let me = null;
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    me = user || null;
+  } catch { me = null; }
+
+  for (const note of notes) {
+    // li 要素
     const li = document.createElement("li");
-    // テキスト
+
+    // タイトル＆科目
     const textSpan = document.createElement("span");
     textSpan.textContent = `${note.title}（${note.subject || "－"}）`;
-    // 投稿者
+
+    // 投稿者（RLSの都合で他人の profiles は読めない → “あなた/非公開” に簡略化）
     const authorSpan = document.createElement("span");
     authorSpan.className = "author";
-    authorSpan.textContent = `投稿者：${authorNickname}`;
+    authorSpan.textContent = `投稿者：${me && me.id === note.user_id ? "あなた" : "非公開"}`;
+
     // 日時
     const dateSpan = document.createElement("span");
     dateSpan.className = "small";
     dateSpan.textContent = ` – ${new Date(note.created_at).toLocaleString()}`;
-    // PDFを開くボタン
+
+    // PDFを開くボタン（完全URL優先。相対パスは自動で public URL に変換）
     const viewBtn = document.createElement("button");
     viewBtn.textContent = "PDFを開く";
-    const fileUrl = note.file_url; // 完全URLがDBに保存済み
-    viewBtn.onclick = () => {
-      if (!fileUrl) return alert("公開URLが登録されていません。");
-      window.open(fileUrl, "_blank");
+    viewBtn.onclick = async () => {
+      let url = note.file_url || "";
+      if (!url) {
+        alert("公開URLが登録されていません。");
+        return;
+      }
+      if (!/^https?:\/\//.test(url)) {
+        // 既存の相対パスデータ向けフォールバック
+        const { data: pub } = supabase.storage.from("lecture-files").getPublicUrl(url);
+        url = pub?.publicUrl || url;
+      }
+      window.open(url, "_blank");
     };
-
 
     // 削除ボタン（管理者のみ）
     let deleteBtn = null;
     if (currentUserProfile && currentUserProfile.is_admin) {
       deleteBtn = document.createElement("button");
-      deleteBtn.className   = "delete-btn";
+      deleteBtn.className = "delete-btn";
       deleteBtn.textContent = "削除";
       deleteBtn.onclick = () => {
         if (confirm(`本当に「${note.title}」を削除しますか？`)) {
@@ -228,28 +249,27 @@ async function loadNotes(searchKeyword = "", categoryFilter = "") {
         }
       };
     }
-    
 
-    // li にまとめて ul に追加
+    // コメント専用ページへのリンク
+    const commentLink = document.createElement("a");
+    commentLink.href = `comments.html?note_id=${note.id}`;
+    commentLink.textContent = "コメントを見る";
+    commentLink.className = "comment-link";
+
+    // li に追加
     li.appendChild(textSpan);
     li.appendChild(authorSpan);
     li.appendChild(dateSpan);
     li.appendChild(viewBtn);
     if (deleteBtn) li.appendChild(deleteBtn);
-        // li を作ったあと、最後にコメント用 UI を追加
-    // ── コメント専用ページへのリンクを追加 ──
-    const commentLink = document.createElement("a");
-    commentLink.href        = `comments.html?note_id=${note.id}`;
-    commentLink.textContent = "コメントを見る";
-    commentLink.className   = "comment-link";
     li.appendChild(commentLink);
 
-    // 最後に li をリストに追加
     listElem.appendChild(li);
   }
 }
 
 
+// ---- 削除 ----
 async function deleteNote(noteId) {
   const { error } = await supabase
     .from("notes")
@@ -263,25 +283,33 @@ async function deleteNote(noteId) {
   }
 }
 
+
+// ---- サインアウト ----
 async function signOut() {
-  // main.html の「ログアウト」ボタンから呼ばれる
   await supabase.auth.signOut();
   window.location.href = "index.html";
 }
 
+
+// ---- 初期化 ----
 window.addEventListener("DOMContentLoaded", async () => {
-  await setupUI();
+  await setupUI();           // ← 既存のログイン表示・ボタンバインド
   await loadNotes();
 
-  // 検索ボックスの input イベントで絞り込み
-  document.getElementById("search-input")
-    .addEventListener("input", async e => {
+  // 検索＆カテゴリフィルター
+  const searchEl = document.getElementById("search-input");
+  const catEl    = document.getElementById("category-filter");
+
+  if (searchEl) {
+    searchEl.addEventListener("input", async (e) => {
       const keyword = e.target.value.trim();
-      await loadNotes(keyword, document.getElementById("category-filter").value);
+      await loadNotes(keyword, catEl ? catEl.value : "");
     });
-  document.getElementById("category-filter")
-   .addEventListener("change", async e => {
-     const cat = e.target.value;
-     await loadNotes(document.getElementById("search-input").value.trim(), cat);
-   });
-})
+  }
+  if (catEl) {
+    catEl.addEventListener("change", async (e) => {
+      const cat = e.target.value;
+      await loadNotes(searchEl ? searchEl.value.trim() : "", cat);
+    });
+  }
+});
