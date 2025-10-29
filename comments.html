@@ -10,23 +10,27 @@
   <div class="login-signup" style="max-width:720px">
     <h1>コメント</h1>
 
+    <!-- ノート情報（任意表示） -->
     <div id="note-info" class="small" style="margin:8px 0 16px;color:#555"></div>
 
-    <ul id="comments-list"></ul>
+    <!-- 一覧 -->
+    <div class="comments-container">
+      <ul id="comments-list"></ul>
 
-    <!-- formにしない／buttonはtype="button" -->
-    <div style="display:flex;align-items:center;gap:8px;">
-      <input id="comment-input" class="comment-input" type="text" placeholder="コメントを入力…" />
-      <button id="comment-btn" type="button" disabled>投稿</button>
+      <!-- 投稿フォーム（ログイン時のみ有効） -->
+      <div style="display:flex;align-items:center;gap:8px;">
+        <input id="comment-input" class="comment-input" type="text" placeholder="コメントを入力…" />
+        <button id="comment-btn" disabled>投稿</button>
+      </div>
+      <p id="comment-hint" class="small" style="margin-top:6px;color:#777">
+        ※ ログインするとコメントを投稿できます。
+      </p>
     </div>
-    <p id="comment-hint" class="small" style="margin-top:6px;color:#777">
-      ※ ログインするとコメントを投稿できます。
-    </p>
 
     <p style="margin-top:18px"><a href="main.html">← 一覧に戻る</a></p>
   </div>
 
-  
+  <!-- 読み込み順はこの順で -->
   <script type="module" src="js/supabase.js"></script>
   <script type="module" src="js/comments.js"></script>
 </body>
