@@ -2,14 +2,19 @@
 import { supabase } from "./supabase.js";
 
 export async function signUp(nickname, email, password) {
-  const { data, error } = await supabase.auth.signUp({ email, password },{ redirectTo: `${window.location.origin}/confirm.html` });
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: { emailRedirectTo: `${window.location.origin}/confirm.html` }
+  });
   if (error) throw error;
-  // プロフィールにニックネームと初期 role
-  await supabase
-    .from("profiles")
-    .upsert({ id: data.user.id, username: nickname, role: 'user' });
-  return data.user;
+
+  // サインアップ直後は data.user が null のことがある（メール確認前）
+  // プロフィールは SQL のトリガで自動作成（後述）に任せる。
+  // ニックネーム設定はログイン後に別途更新でも可。
+  return data.user ?? null;
 }
+
 
 export async function signIn(email, password) {
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });

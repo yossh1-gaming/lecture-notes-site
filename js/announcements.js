@@ -1,6 +1,6 @@
 import { supabase } from "./supabase.js";
 
-const ul = document.getElementById("ann-list");
+const ul = document.getElementById("news");
 
 async function loadAnnouncements() {
   // ✅ まず、ゲスト（未ログイン）でも読み込めるように

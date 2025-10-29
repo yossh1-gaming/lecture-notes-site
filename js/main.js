@@ -72,16 +72,13 @@ async function getCurrentUserProfile() {
   }
 }
 
-/**
- * アップロード処理
- */
 async function uploadNote() {
   if (!currentUser) return alert("ログインしてください");
 
-  const title = document.getElementById("note-title").value.trim();
-  const subject = document.getElementById("note-subject").value.trim();
+  const title    = document.getElementById("note-title").value.trim();
+  const subject  = document.getElementById("note-subject").value.trim();
   const category = document.getElementById("note-category").value;
-  const file = document.getElementById("note-file").files[0];
+  const file     = document.getElementById("note-file").files[0];
   if (!title || !file) return alert("タイトルとファイルは必須です");
 
   // 1) まず行を作って id を取得
@@ -93,22 +90,45 @@ async function uploadNote() {
   if (insErr) return alert("ノート作成エラー: " + insErr.message);
 
   const id = inserted.id;
-  const path = `notes/${id}.pdf`;                     // ← 固定キー
+
+  // 拡張子を元ファイルから取得（既定は .pdf）
+  const ext = (file.name.split(".").pop() || "pdf").toLowerCase();
+  const path = `notes/${id}.${ext}`;               // ← 一意 & 上書き可能な固定キー
   const bucket = supabase.storage.from("lecture-files");
 
   // 2) 上書きアップロード（常に同じキーに保存）
   const { error: upErr } = await bucket.upload(path, file, {
-    contentType: "application/pdf",
-    upsert: true,                                     // ← 重要：上書き
+    contentType: file.type || "application/pdf",
+    upsert: true,
   });
   if (upErr) return alert("アップロード失敗: " + upErr.message);
 
-  // 3) file_url を固定パスで更新
+  // 3) 公開URLを取得（Public バケット前提）。非公開なら signed URL を出す。
+  let publicUrl = null;
+  try {
+    const { data: pub } = bucket.getPublicUrl(path);
+    publicUrl = pub?.publicUrl || null;
+  } catch { /* noop */ }
+
+  if (!publicUrl) {
+    // 非公開バケットなら 1時間の署名URLを発行して保存
+    const { data: signed, error: sigErr } = await bucket.createSignedUrl(path, 3600);
+    if (sigErr) return alert("URL生成失敗: " + sigErr.message);
+    publicUrl = signed.signedUrl;
+  }
+
+  // 4) file_url を「完全URL」で更新（これで404を根絶）
   const { error: updErr } = await supabase
     .from("notes")
-    .update({ file_url: path })
+    .update({ file_url: publicUrl })
     .eq("id", id);
   if (updErr) return alert("URL更新失敗: " + updErr.message);
+
+  // 5) お知らせに自動投稿
+  await supabase.from("announcements").insert({
+    title: `新規資料：${title}`,
+    body: subject ? `${subject} の資料がアップロードされました` : "新規資料がアップロードされました",
+  });
 
   alert("アップロード完了！");
   document.getElementById("note-title").value = "";
@@ -116,6 +136,7 @@ async function uploadNote() {
   document.getElementById("note-file").value = "";
   loadNotes();
 }
+
 
 
 async function loadComments(noteId, commentsList) {
@@ -188,15 +209,12 @@ async function loadNotes(searchKeyword = "", categoryFilter = "") {
     // PDFを開くボタン
     const viewBtn = document.createElement("button");
     viewBtn.textContent = "PDFを開く";
-    const {data:pub}=supabase
-      .storage
-      .from("lecture-files")
-      .getPublicUrl(note.file_url);
-    const fileUrl=pub?.publicUrl;
+    const fileUrl = note.file_url; // 完全URLがDBに保存済み
     viewBtn.onclick = () => {
-      if(!fileUrl) return alert("公開URLを取得できませんでした。");
-      window.open(fileUrl,"_blank");
-    }
+      if (!fileUrl) return alert("公開URLが登録されていません。");
+      window.open(fileUrl, "_blank");
+    };
+
 
     // 削除ボタン（管理者のみ）
     let deleteBtn = null;

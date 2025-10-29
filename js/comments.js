@@ -7,7 +7,7 @@ async function init() {
   // DOM取得（nullガード）
   const ul   = document.getElementById("comments-list");
   const form = document.getElementById("comment-form");
-  const btn  = document.getElementById("comment-btn");
+  const btn  = document.getElementById("comment-post-btn");
   const input= document.getElementById("comment-input");
   if (!ul || !form || !btn || !input) {
     console.error("必要なDOMが見つかりません");
