@@ -21,16 +21,11 @@ function showErrorOnList(msg) {
 }
 
 async function initAuth() {
-  try {
-    const { data: { user }, error } = await supabase.auth.getUser();
-    if (error) console.warn("getUser error:", error.message);
+    const { data: { user }} = await supabase.auth.getUser();
     me = user || null;
     try { admin = await isAdmin(); } catch { admin = false; }
-  } catch (e) {
-    console.error("initAuth fatal:", e);
-    me = null; admin = false;
   }
-}
+
 
 function setFormState() {
   const authed = !!me && !!noteId;
