@@ -1,97 +1,117 @@
+// js/comments.js
 import { supabase } from "./supabase.js";
 
-let noteId = null;
-let user = null;
-
-async function init() {
-  // DOM取得（nullガード）
-  const ul   = document.getElementById("comments-list");
-  const form = document.getElementById("comment-form");
-  const btn  = document.getElementById("comment-post-btn");
-  const input= document.getElementById("comment-input");
-  if (!ul || !form || !btn || !input) {
-    console.error("必要なDOMが見つかりません");
-    return;
-  }
-
-  // セッション取得（失敗してもゲスト閲覧は続行）
-  try {
-    const { data: { session } } = await supabase.auth.getSession();
-    user = session?.user || null;
-  } catch (e) {
-    console.warn("getSession 失敗:", e);
-    user = null;
-  }
-
-  // note_id 取得
-  noteId = new URLSearchParams(location.search).get("note_id");
-  if (!noteId) {
-    ul.innerHTML = "<li>note_id がありません</li>";
-    form.style.display = "none";
-    return;
-  }
-
-  // ゲストはフォーム非表示（閲覧のみ）
-  if (!user) form.style.display = "none";
-
-  // 既存コメント読み込み
-  await loadComments();
-
-  // 投稿
-  btn.onclick = postComment;
+/* ===== ヘルパ ===== */
+function getParam(name) {
+  const u = new URL(location.href);
+  return u.searchParams.get(name);
+}
+function fmt(dt) {
+  try { return new Date(dt).toLocaleString(); } catch { return dt; }
 }
 
-async function loadComments() {
-  const ul = document.getElementById("comments-list");
-  ul.innerHTML = "<li>読み込み中...</li>";
+/* ===== 要素参照 ===== */
+const commentsList = document.getElementById("comments-list");
+const inputEl      = document.getElementById("comment-input");
+const postBtn      = document.getElementById("comment-btn");
+const hintEl       = document.getElementById("comment-hint");
+const noteInfoEl   = document.getElementById("note-info");
 
-  const { data, error } = await supabase
+/* ===== 入口チェック ===== */
+const noteId = getParam("note_id");
+if (!noteId) {
+  commentsList.innerHTML = "<li>ノートが指定されていません。<br>「講義録一覧」から『コメントを見る』を押してください。</li>";
+  if (postBtn) postBtn.disabled = true;
+}
+
+/* ===== ノート情報（任意） ===== */
+async function loadNoteInfo() {
+  if (!noteId) return;
+  const { data, error } = await supabase.from("notes").select("title, subject, author_name, created_at").eq("id", noteId).single();
+  if (error) return; // 表示は必須でないので無視
+  const s = [];
+  if (data.title) s.push(`タイトル: ${data.title}`);
+  if (data.subject) s.push(`科目: ${data.subject}`);
+  if (data.author_name) s.push(`投稿者: ${data.author_name}`);
+  if (data.created_at) s.push(`投稿日: ${fmt(data.created_at)}`);
+  noteInfoEl.textContent = s.join(" / ");
+}
+
+/* ===== コメントの描画 ===== */
+async function loadComments() {
+  if (!noteId) return;
+  const { data: comments, error } = await supabase
     .from("comments")
-    // FKが comments.user_id -> profiles.id で張ってあればこれでOK
-    .select("content, created_at, user_id")
+    .select("content, created_at")
     .eq("note_id", noteId)
     .order("created_at", { ascending: true });
 
+  commentsList.innerHTML = "";
   if (error) {
-    console.error("comments load error:", error.message);
-    ul.innerHTML = "<li>読み込みに失敗しました</li>";
+    console.error("コメント取得エラー：", error.message);
+    commentsList.innerHTML = "<li>読み込みに失敗しました。</li>";
+    return;
+  }
+  if (!comments || comments.length === 0) {
+    commentsList.innerHTML = "<li>まだコメントはありません。</li>";
     return;
   }
 
-  ul.innerHTML = "";
-  if (!data || data.length === 0) {
-    ul.innerHTML = "<li>まだコメントはありません</li>";
-    return;
-  }
-
-  for (const c of data) {
-    const li  = document.createElement("li");
-    li.textContent = `${c.content} — ${new Date(c.created_at).toLocaleString()}`;
-    ul.appendChild(li);
+  for (const c of comments) {
+    const li = document.createElement("li");
+    li.textContent = `${c.content} — ${fmt(c.created_at)}`;
+    commentsList.appendChild(li);
   }
 }
 
+/* ===== 投稿処理（ログイン者のみ） ===== */
 async function postComment() {
-  const input = document.getElementById("comment-input");
-  const content = input.value.trim();
+  if (!noteId) return alert("note_id がありません。");
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return alert("ログインしてください。");
 
-  if (!user) {
-    alert("ログインしてください");
-    return;
-  }
+  const content = (inputEl.value || "").trim();
   if (!content) return;
 
-  const { error } = await supabase
-    .from("comments")
-    .insert({ note_id: noteId, user_id: user.id, content });
-
+  const { error } = await supabase.from("comments").insert({
+    note_id: noteId,
+    user_id: user.id,
+    content
+  });
   if (error) {
-    alert("投稿失敗: " + error.message);
+    alert("投稿に失敗しました：" + error.message);
     return;
   }
-
-  input.value = "";
+  inputEl.value = "";
   await loadComments();
 }
 
-window.addEventListener("DOMContentLoaded", init);
+/* ===== ログイン状態でフォームを切替 ===== */
+async function setFormStateByAuth() {
+  const { data: { user } } = await supabase.auth.getUser();
+  const authed = !!user;
+
+  postBtn.disabled = !authed || !noteId;
+  inputEl.disabled = !authed || !noteId;
+
+  hintEl.textContent = authed ? "※ コメントは公開されます。" : "※ ログインするとコメントを投稿できます。";
+}
+
+/* auth 状態変化でも切替 */
+supabase.auth.onAuthStateChange(() => setFormStateByAuth());
+
+/* ===== 初期化 ===== */
+window.addEventListener("DOMContentLoaded", async () => {
+  await setFormStateByAuth();
+  await loadNoteInfo();
+  await loadComments();
+
+  postBtn.addEventListener("click", postComment);
+  // Enter投稿（任意）
+  inputEl.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey && !postBtn.disabled) {
+      e.preventDefault();
+      postComment();
+    }
+  });
+});
