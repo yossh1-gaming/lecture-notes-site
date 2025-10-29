@@ -4,8 +4,7 @@ import { supabase, isAdmin } from "./supabase.js";
 const $ = (id) => document.getElementById(id);
 
 // --- note_id を厳密に（数値 or UUID どちらにも対応） ---
-const rawId = new URL(location.href).searchParams.get("note_id");
-const noteId = rawId && /^\d+$/.test(rawId) ? Number(rawId) : rawId || null;
+const noteId = renewURL(location.href).searchParams.get("note_id")|| null;
 
 const listEl  = $("comments-list");
 const inputEl = $("comment-input");
