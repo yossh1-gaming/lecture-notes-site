@@ -42,7 +42,7 @@ async function loadComments() {
   if (!noteId) return;
   const { data: comments, error } = await supabase
     .from("comments")
-    .select("content, created_at")
+    .select("author_name, content, created_at")
     .eq("note_id", noteId)
     .order("created_at", { ascending: true });
 
@@ -59,7 +59,8 @@ async function loadComments() {
 
   for (const c of comments) {
     const li = document.createElement("li");
-    li.textContent = `${c.content} — ${fmt(c.created_at)}`;
+    const who = c.author_name || "名無し";  
+    li.textContent = `${who}: ${c.content} — ${fmt(c.created_at)}`;
     commentsList.appendChild(li);
   }
 }
@@ -73,10 +74,25 @@ async function postComment() {
   const content = (inputEl.value || "").trim();
   if (!content) return;
 
+  // 投稿者名を取得（自分のprofilesはRLS的に読めます）
+  let authorName = null;
+  try {
+    const { data: p } = await supabase
+      .from("profiles")
+      .select("username")
+      .eq("id", user.id)
+      .single();
+    authorName = p?.username || null;
+  } catch {}
+  if (!authorName) {
+    authorName = (user.email || "").split("@")[0] || "名無し";
+  }
+
   const { error } = await supabase.from("comments").insert({
     note_id: noteId,
     user_id: user.id,
-    content
+    content,
+    author_name: authorName
   });
   if (error) {
     alert("投稿に失敗しました：" + error.message);
