@@ -9,19 +9,19 @@
 <body>
   <div class="login-signup" style="max-width:720px">
     <h1>コメント</h1>
-    <div id="guest-banner" class="guest-banner">
-      ゲスト閲覧中です。<a href="index.html">ログイン</a> または <a href="signup.html">新規登録</a> に進めます。
+
+    <!-- ★ゲスト用バナー（ログイン/新規登録へ） -->
+    <div id="guest-banner" class="guest-banner" style="display:none">
+      ゲスト閲覧中です。<a href="index.html">ログイン</a> または
+      <a href="signup.html">新規登録</a> に進めます。
     </div>
 
-
-    <!-- ノート情報（任意表示） -->
+    <!-- ノート情報（任意） -->
     <div id="note-info" class="small" style="margin:8px 0 16px;color:#555"></div>
 
-    <!-- 一覧 -->
+    <!-- コメント一覧＋投稿 -->
     <div class="comments-container">
       <ul id="comments-list"></ul>
-
-      <!-- 投稿フォーム（ログイン時のみ有効） -->
       <div style="display:flex;align-items:center;gap:8px;">
         <input id="comment-input" class="comment-input" type="text" placeholder="コメントを入力…" />
         <button id="comment-btn" disabled>投稿</button>
@@ -34,7 +34,7 @@
     <p style="margin-top:18px"><a href="main.html">← 一覧に戻る</a></p>
   </div>
 
-  <!-- 読み込み順はこの順で -->
+  <!-- ★読み込み順：必ず supabase.js → comments.js -->
   <script type="module" src="js/supabase.js"></script>
   <script type="module" src="js/comments.js"></script>
 </body>
