@@ -169,6 +169,7 @@ async function boot() {
     return;
   }
   await initAuth();
+  updateGuestBanner();
   setFormState();
   bindEventsOnce();
   await loadNoteInfo();
@@ -183,6 +184,19 @@ if (document.readyState === "loading") {
 // 認証変化（ログイン/ログアウト直後の再描画）
 supabase.auth.onAuthStateChange(async () => {
   await initAuth();
+  updateGuestBanner();
   setFormState();
   await loadComments();
 });
+
+// 追加：ゲスト用バナー制御
+function updateGuestBanner() {
+  const banner = document.getElementById("guest-banner");
+  if (!banner) return;
+  // me は initAuth() で設定される
+  if (me) {
+    banner.style.display = "none";
+  } else {
+    banner.style.display = "block";
+  }
+}

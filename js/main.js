@@ -38,6 +38,7 @@ async function setupUI() {
     userInfoDiv.textContent = "ゲスト閲覧中";
     uploadSection.style.display = "none";
   }
+  updateGuestBanner();
 
   // 誰でも一覧は表示（初回1回だけ）
   await loadNotes();
@@ -313,3 +314,12 @@ window.addEventListener("DOMContentLoaded", async () => {
     });
   }
 });
+
+// 追加：ゲスト用バナー制御（main用）
+function updateGuestBanner() {
+  const banner = document.getElementById("guest-banner");
+  if (!banner) return;
+  if (currentUser) banner.style.display = "none";
+  else banner.style.display = "block";
+}
+

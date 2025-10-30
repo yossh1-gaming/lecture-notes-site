@@ -332,3 +332,17 @@ button:disabled {
 .logo-text:hover {
   fill: #444;
 }
+
+/* ゲスト用バナー */
+.guest-banner {
+  display: none;
+  margin: 0 0 12px 0;
+  padding: 10px 12px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  background: #fafafa;
+  color: #333;
+  font-size: 14px;
+}
+.guest-banner a { text-decoration: underline; }
+
