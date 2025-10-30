@@ -179,13 +179,43 @@ function ensureSingleAuthSubscription() {
       }
       return;
     }
-    if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED" || event === "USER_UPDATED") {
-      if (!reloading) {
-        reloading = true;
-        location.replace(`${location.pathname}${location.search ? location.search + '&' : '?'}t=${Date.now()}`);
-      }
-      return;
+    // --- 修正版：TOKEN_REFRESHED で reload しない・再起動防止 ---
+    function ensureSingleAuthSubscription() {
+      if (authSub) return;
+
+      const { data: sub } = supabase.auth.onAuthStateChange(async (event) => {
+        if (event === "SIGNED_OUT") {
+          disableUIForSignOut();
+          location.replace("index.html"); // ← サインアウトはログイン画面へ
+          return;
+        }
+
+        // ★ サインインした時だけ初期化（TOKEN_REFRESHEDではリロードしない！）
+        if (event === "SIGNED_IN") {
+          await initAuth();
+          await loadComments();
+          return;
+        }
+
+        // TOKEN_REFRESHEDやUSER_UPDATEDはスルー（無限再読込防止）
+        if (event === "TOKEN_REFRESHED" || event === "USER_UPDATED") {
+          return;
+        }
+
+        if (event === "INITIAL_SESSION") {
+          await initAuth();
+          await loadComments();
+        }
+      });
+
+      authSub = sub.subscription;
+
+      window.addEventListener("beforeunload", () => {
+        try { authSub?.unsubscribe(); } catch {}
+        authSub = null;
+      }, { once: true });
     }
+
     if (event === "INITIAL_SESSION") {
       await initAuth();
       await loadComments();
