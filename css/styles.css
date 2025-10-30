@@ -352,11 +352,14 @@ button:disabled {
   right: 16px;
   bottom: 16px;
   z-index: 9999;
+  font-family: system-ui, sans-serif;
   font-size: 14px;
 }
+
+/* メイン丸ボタン（≡） */
 .fab-main {
-  width: 52px;
-  height: 52px;
+  width: 56px;
+  height: 56px;
   border-radius: 50%;
   background: #1f6feb;
   color: #fff;
@@ -366,26 +369,54 @@ button:disabled {
   align-items: center;
   justify-content: center;
   cursor: pointer;
+  font-size: 22px;
 }
+
+/* サブボタンのパネル */
 .fab-panel {
   position: absolute;
-  right: 60px;
+  right: 68px;  /* ← 少し離す */
   bottom: 0;
   display: none;
+  flex-direction: column;
   gap: 8px;
-  align-items: center;
+  align-items: flex-end;
 }
+
+/* 各ボタンの見た目 */
 .fab-panel a {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 8px 10px;
-  border-radius: 999px;
+  justify-content: flex-start;
+  gap: 8px;
+  width: 140px;             /* ← 固定幅で揃える */
+  height: 44px;             /* ← 高さ統一 */
+  padding: 0 12px;
+  border-radius: 8px;
   background: #fff;
   border: 1px solid #ddd;
   box-shadow: 0 2px 8px rgba(0,0,0,.08);
   color: #333;
   text-decoration: none;
+  transition: background 0.2s;
 }
-.fab-wrap.open .fab-panel { display: flex; }
-.fab-ico { font-weight: 700; }
+.fab-panel a:hover {
+  background: #f0f4ff;
+}
+
+/* アイコン（左） */
+.fab-panel .fab-ico {
+  font-size: 18px;
+  line-height: 1;
+}
+
+/* テキストは横書き・均等 */
+.fab-panel span {
+  display: inline-block;
+  white-space: nowrap;
+}
+
+/* 開いた状態 */
+.fab-wrap.open .fab-panel {
+  display: flex;
+}
