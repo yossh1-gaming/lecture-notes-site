@@ -30,7 +30,7 @@ async function setupUI() {
     userInfoDiv.textContent = `ログイン中：${nickname}`;
     uploadSection.style.display = "block";
     document.getElementById("upload-btn").onclick = uploadNote;
-    document.getElementById("logout-btn").onclick = signOut;
+    //document.getElementById("logout-btn").onclick = signOut;
   } else {
     // ゲスト：一覧のみ見せる（PDF/アップロード不可）
     currentUser = null;

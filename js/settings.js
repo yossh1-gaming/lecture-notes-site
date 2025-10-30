@@ -80,12 +80,31 @@ async function deleteAccount(){
   setTimeout(()=>location.replace("index.html"),700);
 }
 
+// 参照（先頭のほうの定義群に追加）
+const logoutBtn = document.getElementById("logout-btn");
+const logoutMsg = document.getElementById("logout-msg");
+
+// ログアウト処理
+async function onLogout(){
+  try{
+    await supabase.auth.signOut();
+    logoutMsg.textContent = "ログアウトしました。トップに移動します…";
+    logoutMsg.className = "small ok";
+  }catch(e){
+    logoutMsg.textContent = "ログアウトに失敗しました：" + (e?.message || e);
+    logoutMsg.className = "small err";
+    return;
+  }
+  setTimeout(()=> location.replace("index.html"), 600);
+}
+
 function bind(){
   saveNickBtn.onclick=saveNick;
   changeEmailBtn.onclick=changeEmail;
   resendVerifyBtn.onclick=resendVerify;
   changePassBtn.onclick=changePass;
   delBtn.onclick=deleteAccount;
+  if (logoutBtn) logoutBtn.onclick = onLogout;  
 }
 
 async function boot(){ await loadUser(); render(); bind(); }
