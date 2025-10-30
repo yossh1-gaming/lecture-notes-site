@@ -83,11 +83,17 @@ async function uploadNote() {
   if (!title || !file) return alert("タイトルとファイルは必須です");
 
   // 1) まず行を作って id を取得
+  // insert のときに author_name を一緒に入れる
+  let authorName =
+    (currentUserProfile && currentUserProfile.username) ||
+    (currentUser?.email ? currentUser.email.split("@")[0] : "名無し");
+
   const { data: inserted, error: insErr } = await supabase
     .from("notes")
-    .insert({ title, subject, category, user_id: currentUser.id })
+    .insert({ title, subject, category, user_id: currentUser.id, author_name: authorName })
     .select("id")
     .single();
+
   if (insErr) return alert("ノート作成エラー: " + insErr.message);
 
   const id = inserted.id;
@@ -201,7 +207,7 @@ async function loadNotes(searchKeyword = "", categoryFilter = "") {
   try {
     const { data: { user } } = await supabase.auth.getUser();
     me = user || null;
-  } catch { me = null; }
+  } catch { }
 
   for (const note of notes) {
     // li 要素
@@ -214,7 +220,12 @@ async function loadNotes(searchKeyword = "", categoryFilter = "") {
     // 投稿者（RLSの都合で他人の profiles は読めない → “あなた/非公開” に簡略化）
     const authorSpan = document.createElement("span");
     authorSpan.className = "author";
-    authorSpan.textContent = `投稿者：${me && me.id === note.user_id ? "あなた" : "非公開"}`;
+    if (!me) {
+      authorSpan.textContent = `投稿者：非公開`;        // ゲスト
+    } else {
+      const shown = note.author_name?.trim() || "未設定ニックネーム";
+      authorSpan.textContent = `投稿者：${shown}`;     // ログイン中
+    }
 
     // 日時
     const dateSpan = document.createElement("span");

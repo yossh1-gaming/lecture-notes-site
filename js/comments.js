@@ -133,17 +133,16 @@ async function postComment() {
   const content = (inputEl.value || "").trim();
   if (!content) { inputEl.focus(); return; }
 
-  let authorName = null;
-  try {
-    const { data: p } = await supabase
-      .from("profiles")
-      .select("username")
-      .eq("id", user.id)
-      .single();
-    authorName = p?.username || null;
-  } catch {}
-  if (!authorName) authorName = (user.email || "").split("@")[0] || "名無し";
+  let authorName =
+  (currentUserProfile && currentUserProfile.username) ||
+  (currentUser?.email ? currentUser.email.split("@")[0] : "名無し");
 
+const { data: inserted, error: insErr } = await supabase
+  .from("notes")
+  .insert({ title, subject, category, user_id: currentUser.id, author_name: authorName })
+  .select("id")
+  .single();
+  
   const payload = { note_id: noteId, user_id: user.id, content, author_name: authorName };
   const { error, status } = await supabase.from("comments").insert(payload);
   if (error) return alert(`投稿失敗(${status}): ${error.message}`);

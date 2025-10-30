@@ -15,29 +15,20 @@
   <!-- confirm.html の <body> 終わりに -->
   <script type="module">
     import { supabase } from "./js/supabase.js";
-
-    // ハッシュからトークンを復元（email確認リンク用）
     const hash = new URL(location.href).hash;
-    const params = new URLSearchParams(hash.slice(1));
-    const access_token  = params.get("access_token");
-    const refresh_token = params.get("refresh_token");
-
-    async function run() {
-      const out = document.getElementById("result");
-      if (access_token && refresh_token) {
-        const { error } = await supabase.auth.setSession({ access_token, refresh_token });
-        if (error) {
-          out.textContent = "認証の確立に失敗しました：" + error.message;
-          return;
-        }
-        out.textContent = "メール認証が完了しました。";
-        setTimeout(() => location.replace("main.html"), 1200);
-      } else {
-        out.textContent = "無効なリンクです。";
-      }
+    const p = new URLSearchParams(hash.slice(1));
+    const at = p.get("access_token");
+    const rt = p.get("refresh_token");
+    const out = document.getElementById("result");
+    if (at && rt) {
+      const { error } = await supabase.auth.setSession({ access_token: at, refresh_token: rt });
+      out.textContent = error ? "認証失敗：" + error.message : "メール認証が完了しました。";
+      setTimeout(()=>location.replace("main.html"), 1500);
+    } else {
+      out.textContent = "無効なリンクです。";
     }
-    run();
-  </script>
+    </script>
+
 
 </body>
 </html>

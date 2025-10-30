@@ -51,8 +51,12 @@ async function changeEmail(){
 
 // 認証再送
 async function resendVerify(){
-  const redirectTo=`${location.origin}/confirm.html`;
-  const {error}=await supabase.auth.resend({type:"signup",email:me.email,options:{emailRedirectTo:redirectTo}});
+  const redirectTo = `${location.origin}/confirm.html`;
+  await supabase.auth.resend({
+    type: "signup",
+    email: me.email,
+    options: { emailRedirectTo: redirectTo }
+  });
   if(error)return info(emailMsg,error.message,"err");
   info(emailMsg,"認証メールを再送しました。","ok");
 }
@@ -70,15 +74,20 @@ async function changePass(){
 
 // アカウント削除
 async function deleteAccount(){
-  if((delInput.value||"").trim()!=="削除")return info(delMsg,"「削除」と入力してください","err");
-  if(!confirm("本当に削除しますか？"))return;
-  await supabase.from("comments").delete().eq("user_id",me.id);
-  await supabase.from("notes").delete().eq("user_id",me.id);
-  await supabase.from("profiles").delete().eq("id",me.id);
+  if ((delInput.value || "").trim() !== "削除") {
+    info(delMsg, "「削除」と入力してください", "err");
+    return;
+  }
+  if (!confirm("本当に削除しますか？この操作は取り消せません。")) return;
+
+  const { error } = await supabase.rpc("delete_my_account_keep_notes");
+  if (error) { info(delMsg, "削除に失敗: " + error.message, "err"); return; }
+
   await supabase.auth.signOut();
-  info(delMsg,"削除しました。トップへ移動します","ok");
-  setTimeout(()=>location.replace("index.html"),700);
+  info(delMsg, "削除しました。トップへ移動します", "ok");
+  setTimeout(() => location.replace("index.html"), 700);
 }
+
 
 // 参照（先頭のほうの定義群に追加）
 const logoutBtn = document.getElementById("logout-btn");

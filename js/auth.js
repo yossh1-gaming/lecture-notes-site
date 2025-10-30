@@ -2,12 +2,12 @@
 import { supabase } from "./supabase.js";
 
 export async function signUp(nickname, email, password) {
+  const redirectTo = `${location.origin}/confirm.html`;
   const { data, error } = await supabase.auth.signUp({
-    email,
-    password,
-    options: { emailRedirectTo: `${window.location.origin}/confirm.html` }
+    email, password,
+    options: { emailRedirectTo: redirectTo }
   });
-  if (error) throw error;
+    if (error) throw error;
 
   // サインアップ直後は data.user が null のことがある（メール確認前）
   // プロフィールは SQL のトリガで自動作成（後述）に任せる。
