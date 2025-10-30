@@ -333,7 +333,7 @@ button:disabled {
   fill: #444;
 }
 
-/* ゲスト用バナー */
+/* === ゲストバナー（既にあればスキップ） === */
 .guest-banner {
   display: none;
   margin: 0 0 12px 0;
@@ -344,5 +344,48 @@ button:disabled {
   color: #333;
   font-size: 14px;
 }
-.guest-banner a { text-decoration: underline; }
+.guest-banner a { text-decoration: underline; color: #0073e6; }
 
+/* === フローティングボタン（右下メニュー） === */
+.fab-wrap {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 9999;
+  font-size: 14px;
+}
+.fab-main {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: #1f6feb;
+  color: #fff;
+  border: none;
+  box-shadow: 0 4px 12px rgba(0,0,0,.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.fab-panel {
+  position: absolute;
+  right: 60px;
+  bottom: 0;
+  display: none;
+  gap: 8px;
+  align-items: center;
+}
+.fab-panel a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 999px;
+  background: #fff;
+  border: 1px solid #ddd;
+  box-shadow: 0 2px 8px rgba(0,0,0,.08);
+  color: #333;
+  text-decoration: none;
+}
+.fab-wrap.open .fab-panel { display: flex; }
+.fab-ico { font-weight: 700; }

@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>設定</title>
+  <link rel="stylesheet" href="css/styles.css" />
+  <style>
+    .settings { max-width:720px; margin:0 auto; }
+    .card { border:1px solid #ddd; border-radius:10px; padding:16px; margin:14px 0; background:#fff; }
+    .row { display:flex; gap:10px; align-items:center; margin:8px 0; }
+    .row label { min-width:120px; }
+    .full { width:100%; }
+    .ok { color:#088408; }
+    .warn { color:#b60; }
+    .err { color:#b00; }
+    .small { color:#666; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <div class="settings">
+    <h1>設定</h1>
+
+    <div id="gate" class="card" style="display:none">
+      <p>ログインが必要です。<a href="index.html">ログイン</a> または <a href="signup.html">新規登録</a> へ。</p>
+    </div>
+
+    <div id="content" style="display:none">
+
+      <div class="card">
+        <h2>アカウント概要</h2>
+        <div class="row"><label>現在のメール</label><div id="cur-email">–</div></div>
+        <div class="row"><label>認証状態</label><div id="email-status">–</div></div>
+        <div class="row"><label>ニックネーム</label>
+          <input id="nick" class="full" type="text" placeholder="表示名" />
+        </div>
+        <div class="row">
+          <button id="save-nick">ニックネームを保存</button>
+        </div>
+        <div id="nick-msg" class="small"></div>
+      </div>
+
+      <div class="card">
+        <h2>メールアドレスを変更</h2>
+        <p class="small">新しいメールアドレス宛に「確認メール」を送ります。</p>
+        <div class="row"><label>新しいメール</label>
+          <input id="new-email" class="full" type="email" placeholder="user@example.com" />
+        </div>
+        <div class="row">
+          <button id="change-email">メール変更リンクを送信</button>
+          <button id="resend-verify">現在のメールに認証メールを再送</button>
+        </div>
+        <div id="email-msg" class="small"></div>
+      </div>
+
+      <div class="card">
+        <h2>パスワードを変更</h2>
+        <div class="row"><label>新しいパスワード</label>
+          <input id="new-pass" class="full" type="password" />
+        </div>
+        <div class="row"><label>確認用</label>
+          <input id="new-pass2" class="full" type="password" />
+        </div>
+        <div class="row">
+          <button id="change-pass">パスワードを変更</button>
+        </div>
+        <div id="pass-msg" class="small"></div>
+      </div>
+
+      <div class="card">
+        <h2>アカウント削除</h2>
+        <p class="small">この操作は取り消せません。確認のため「削除」と入力してください。</p>
+        <div class="row">
+          <input id="delete-confirm" class="full" type="text" placeholder="削除" />
+        </div>
+        <div class="row">
+          <button id="delete-account" style="background:#b00020;color:#fff">アカウントを削除</button>
+        </div>
+        <div id="delete-msg" class="small"></div>
+      </div>
+
+      <p class="small"><a href="main.html">← 一覧に戻る</a></p>
+    </div>
+  </div>
+
+  <script type="module" src="js/supabase.js"></script>
+  <script type="module" src="js/settings.js"></script>
+  <script type="module" src="js/fab.js"></script>
+</body>
+</html>
