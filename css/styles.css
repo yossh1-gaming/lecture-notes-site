@@ -390,7 +390,7 @@ button:disabled {
   justify-content: flex-start;
   gap: 8px;
   width: 200px;             /* ← 固定幅で揃える */
-  height: 65px;             /* ← 高さ統一 */
+  height: 60px;             /* ← 高さ統一 */
   padding: 0 12px;
   border-radius: 8px;
   background: #fff;
@@ -406,7 +406,7 @@ button:disabled {
 
 /* アイコン（左） */
 .fab-panel .fab-ico {
-  font-size: 25px;
+  font-size: 20px;
   line-height: 1;
 }
 
