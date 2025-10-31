@@ -66,6 +66,21 @@
         </div>
         <div id="pass-msg" class="small"></div>
       </div>
+
+      <div class="card" style="margin-top:16px">
+        <h2>生体認証（パスキー）</h2>
+        <p class="small">この端末にパスキーを登録すると、次回は生体認証だけでログインできます。</p>
+        <button id="enroll-passkey-platform">この端末にパスキーを登録</button>
+      </div>
+
+      <script type="module">
+        import { enrollPasskeyPlatform } from "./js/passkeys.js";
+        document.getElementById("enroll-passkey-platform").addEventListener("click", async ()=>{
+          try { await enrollPasskeyPlatform(); }
+          catch(e){ alert("登録に失敗：" + (e?.message || e)); }
+        });
+      </script>
+
       
       <div class="card">
         <h2>ログアウト</h2>

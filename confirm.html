@@ -1,34 +1,54 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8" />
-  <title>メール認証完了</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>メール確認</title>
   <link rel="stylesheet" href="css/styles.css" />
+  <style>
+    body {display:flex;justify-content:center;align-items:center;min-height:100vh;background:#f5f5f5}
+    .card{background:#fff;padding:32px 40px;border-radius:14px;box-shadow:0 6px 16px rgba(0,0,0,.1);max-width:520px}
+    h1{margin:0 0 8px;color:#1f6feb}
+    .btn{display:inline-block;margin-top:16px;padding:10px 16px;background:#1f6feb;color:#fff;border-radius:8px;text-decoration:none;border:0;cursor:pointer}
+    .small{color:#666}
+  </style>
 </head>
 <body>
-  <div class="container">
-    <h1>メール認証中…</h1>
-    <p id="status">しばらくお待ちください。</p>
-    <p><a href="index.html">ログイン画面へ戻る</a></p>
+  <div class="card">
+    <h1>メール認証</h1>
+    <p class="small">「認証を完了する」を押すと、メール認証を確定し認証完了ページに移動します。</p>
+    <div id="state" class="small" style="margin:8px 0 16px"></div>
+    <button id="confirm-btn" class="btn">認証を完了する</button>
+    <div id="msg" class="small" style="margin-top:10px"></div>
   </div>
 
-  <!-- confirm.html の <body> 終わりに -->
   <script type="module">
     import { supabase } from "./js/supabase.js";
     const hash = new URL(location.href).hash;
     const p = new URLSearchParams(hash.slice(1));
     const at = p.get("access_token");
     const rt = p.get("refresh_token");
-    const out = document.getElementById("result");
-    if (at && rt) {
+    const ok = !!(at && rt);
+    const state = document.getElementById("state");
+    state.textContent = ok ? "トークンを検出しました。" : "無効なリンクです。";
+
+    const btn = document.getElementById("confirm-btn");
+    const msg = document.getElementById("msg");
+
+    btn.disabled = !ok;
+    btn.addEventListener("click", async () => {
+      if (!ok) return;
+      btn.disabled = true;
+      msg.textContent = "認証を確定しています…";
       const { error } = await supabase.auth.setSession({ access_token: at, refresh_token: rt });
-      out.textContent = error ? "認証失敗：" + error.message : "メール認証が完了しました。";
-      setTimeout(()=>location.replace("main.html"), 1500);
-    } else {
-      out.textContent = "無効なリンクです。";
-    }
-    </script>
-
-
+      if (error) {
+        msg.textContent = "認証に失敗しました: " + error.message;
+        btn.disabled = false;
+        return;
+      }
+      // 成功 → 完了ページへ
+      location.replace("verified.html");
+    });
+  </script>
 </body>
 </html>
