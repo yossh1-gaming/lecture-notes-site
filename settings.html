@@ -70,16 +70,16 @@
       <div class="card" style="margin-top:16px">
         <h2>生体認証（パスキー）</h2>
         <p class="small">この端末にパスキーを登録すると、次回は生体認証だけでログインできます。</p>
-        <button id="enroll-passkey-platform">この端末にパスキーを登録</button>
+        <button id="btn-passkey-register" class="btn primary large">この端末にパスキーを登録</button>
       </div>
 
+      <!-- settings.html の末尾付近 -->
       <script type="module">
-        import { enrollPasskeyPlatform ,loginWithPasskeyPlatform} from "./js/passkeys.js";
-        document.getElementById("enroll-passkey-platform").addEventListener("click", async ()=>{
-          try { await enrollPasskeyPlatform(); }
-          catch(e){ alert("登録に失敗：" + (e?.message || e)); }
-        });
+        import { registerPasskey } from "./js/passkeys.js";
+        document.getElementById("btn-passkey-register")
+          .addEventListener("click", registerPasskey);
       </script>
+
 
       
       <div class="card">
