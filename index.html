@@ -45,11 +45,9 @@
 
   <button id="login-passkey-platform" style="margin-top:8px">生体認証でログイン</button>
   <script type="module">
-    import { loginWithPasskeyPlatform,loginWithPasskeyPlatform } from "./js/passkeys.js";
-    document.getElementById("login-passkey-platform").addEventListener("click", async ()=>{
-      try { await loginWithPasskeyPlatform(); }
-      catch(e){ alert("生体認証に失敗：" + (e?.message || e)); }
-    });
+    import { registerPasskey } from "./js/passkeys.js";
+    document.getElementById("btn-passkey-register")
+      .addEventListener("click", registerPasskey);
   </script>
 
 
