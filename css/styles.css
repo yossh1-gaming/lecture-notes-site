@@ -349,17 +349,17 @@ button:disabled {
 /* === フローティングボタン（右下メニュー） === */
 .fab-wrap {
   position: fixed;
-  right: 16px;
-  bottom: 16px;
+  right: 40px;
+  bottom: 40px;
   z-index: 9999;
   font-family: system-ui, sans-serif;
-  font-size: 14px;
+  font-size: 28px;
 }
 
 /* メイン丸ボタン（≡） */
 .fab-main {
-  width: 56px;
-  height: 56px;
+  width: 80px;
+  height: 80px;
   border-radius: 50%;
   background: #1f6feb;
   color: #fff;
@@ -369,7 +369,7 @@ button:disabled {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  font-size: 22px;
+  font-size: 30px;
 }
 
 /* サブボタンのパネル */
@@ -389,8 +389,8 @@ button:disabled {
   align-items: center;
   justify-content: flex-start;
   gap: 8px;
-  width: 140px;             /* ← 固定幅で揃える */
-  height: 44px;             /* ← 高さ統一 */
+  width: 250px;             /* ← 固定幅で揃える */
+  height: 70px;             /* ← 高さ統一 */
   padding: 0 12px;
   border-radius: 8px;
   background: #fff;
@@ -406,7 +406,7 @@ button:disabled {
 
 /* アイコン（左） */
 .fab-panel .fab-ico {
-  font-size: 18px;
+  font-size: 25px;
   line-height: 1;
 }
 
