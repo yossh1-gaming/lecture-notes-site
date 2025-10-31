@@ -1,6 +1,20 @@
-// js/passkeys.js
 import { supabase } from "./supabase.js";
 
+/* ========= Base64URL ⇄ ArrayBuffer ========= */
+const b64uToBytes = (b64u) => {
+  const pad = (s) => s + "===".slice((s.length + 3) % 4);
+  const b64 = pad(b64u.replace(/-/g, "+").replace(/_/g, "/"));
+  const bin = atob(b64);
+  return Uint8Array.from(bin, (c) => c.charCodeAt(0));
+};
+const bytesToB64u = (bytes) => {
+  let bin = "";
+  const arr = bytes instanceof ArrayBuffer ? new Uint8Array(bytes) : bytes;
+  for (let i = 0; i < arr.length; i++) bin += String.fromCharCode(arr[i]);
+  return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+};
+
+/* ========= Edge Functions 呼び出し ========= */
 async function callFn(name, body = null, withAuth = false) {
   const headers = {};
   if (withAuth) {
@@ -12,56 +26,102 @@ async function callFn(name, body = null, withAuth = false) {
   return data;
 }
 
-// 端末にパスキー登録（platform）
-export async function enrollPasskeyPlatform() {
-  // 1) サーバ: 登録オプション発行（JWT 必須）
-  const opts = await callFn("webauthn-register-start", null, true);
-
-  // 念のためフロントでも platform を強制
-  opts.authenticatorSelection = {
-    authenticatorAttachment: "platform",
-    residentKey: "preferred",
-    userVerification: "required",
+/* ========= オプションの型をWebAuthn用に整形 ========= */
+function toCreateOpts(serverOpts) {
+  return {
+    ...serverOpts,
+    challenge: b64uToBytes(serverOpts.challenge),
+    user: {
+      ...serverOpts.user,
+      // user.id も ArrayBuffer 必須
+      id: b64uToBytes(serverOpts.user.id),
+    },
+    excludeCredentials: (serverOpts.excludeCredentials || []).map((cred) => ({
+      ...cred,
+      id: b64uToBytes(cred.id),
+    })),
   };
-  opts.attestation = "none";
+}
+function toGetOpts(serverOpts) {
+  return {
+    ...serverOpts,
+    challenge: b64uToBytes(serverOpts.challenge),
+    allowCredentials: (serverOpts.allowCredentials || []).map((cred) => ({
+      ...cred,
+      id: b64uToBytes(cred.id),
+    })),
+  };
+}
 
-  // 2) 端末の生体認証UIを起動
-  const attResp = await navigator.credentials.create({ publicKey: opts });
+/* ========= 登録（パスキー作成） ========= */
+export async function enrollPasskeyPlatform() {
+  // サーバから “base64url文字列” のオプションを受け取る
+  const start = await callFn("webauthn-register-start", null, true);
+  // 期待チャレンジは生値（文字列）のまま保持して finish に渡す
+  const expectedChallenge = start.challenge;
 
-  // 3) サーバ: 検証＆保存（JWT 必須）
+  // ブラウザに渡す前に ArrayBuffer に変換
+  const publicKey = toCreateOpts({
+    ...start,
+    authenticatorSelection: {
+      authenticatorAttachment: "platform",
+      residentKey: "preferred",
+      userVerification: "required",
+    },
+    attestation: "none",
+  });
+
+  const cred = await navigator.credentials.create({ publicKey });
+  // サーバへ送るときはバイナリを base64url で戻す
+  const attResp = {
+    id: cred.id,
+    rawId: bytesToB64u(cred.rawId),
+    type: cred.type,
+    response: {
+      clientDataJSON: bytesToB64u(cred.response.clientDataJSON),
+      attestationObject: bytesToB64u(cred.response.attestationObject),
+    },
+  };
+
   await callFn(
     "webauthn-register-finish",
-    { attResp, expectedChallenge: opts.challenge },
+    { attResp, expectedChallenge },
     true
   );
 
-  alert("この端末にパスキーを登録しました。次回は生体認証でログインできます。");
+  alert("この端末にパスキーを登録しました。");
 }
 
-// 生体認証でログイン（platform）
+/* ========= ログイン（パスキー使用） ========= */
 export async function loginWithPasskeyPlatform() {
-  if (
-    !window.PublicKeyCredential ||
-    !(await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable())
-  ) {
-    alert("この端末は生体認証ログインに対応していません。");
-    return;
-  }
+  const start = await callFn("webauthn-login-start");
+  const expectedChallenge = start.challenge;
 
-  // 1) サーバ: 認証オプション発行（未ログイン想定なので JWT なし）
-  const opts = await callFn("webauthn-login-start");
-
-  // 生体認証を要求
-  opts.userVerification = "required";
-
-  // 2) 端末の生体認証UIを起動
-  const authResp = await navigator.credentials.get({ publicKey: opts, mediation: "optional" });
-
-  // 3) サーバ: 検証
-  const { user_id } = await callFn("webauthn-login-finish", {
-    authResp,
-    expectedChallenge: opts.challenge,
+  const publicKey = toGetOpts({
+    ...start,
+    userVerification: "required",
   });
 
-  alert("生体認証OK。続けて通常ログイン（メールOTPなど）でセッションを確定してください。");
+  const assertion = await navigator.credentials.get({ publicKey });
+  const authResp = {
+    id: assertion.id,
+    rawId: bytesToB64u(assertion.rawId),
+    type: assertion.type,
+    response: {
+      clientDataJSON: bytesToB64u(assertion.response.clientDataJSON),
+      authenticatorData: bytesToB64u(assertion.response.authenticatorData),
+      signature: bytesToB64u(assertion.response.signature),
+      userHandle: assertion.response.userHandle
+        ? bytesToB64u(assertion.response.userHandle)
+        : null,
+    },
+  };
+
+  const { user_id } = await callFn(
+    "webauthn-login-finish",
+    { authResp, expectedChallenge }
+  );
+
+  // ここで supabase.auth.signIn など通常のログイン遷移を続ける実装に接続
+  alert("生体認証ログインが検証されました。");
 }
