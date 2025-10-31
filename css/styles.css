@@ -389,8 +389,8 @@ button:disabled {
   align-items: center;
   justify-content: flex-start;
   gap: 8px;
-  width: 250px;             /* ← 固定幅で揃える */
-  height: 70px;             /* ← 高さ統一 */
+  width: 200px;             /* ← 固定幅で揃える */
+  height: 65px;             /* ← 高さ統一 */
   padding: 0 12px;
   border-radius: 8px;
   background: #fff;
