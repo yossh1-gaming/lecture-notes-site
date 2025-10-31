@@ -74,7 +74,7 @@
       </div>
 
       <script type="module">
-        import { enrollPasskeyPlatform } from "./js/passkeys.js";
+        import { enrollPasskeyPlatform ,loginWithPasskeyPlatform} from "./js/passkeys.js";
         document.getElementById("enroll-passkey-platform").addEventListener("click", async ()=>{
           try { await enrollPasskeyPlatform(); }
           catch(e){ alert("登録に失敗：" + (e?.message || e)); }
