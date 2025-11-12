@@ -132,15 +132,19 @@ export async function loginWithPasskey() {
     console.debug("[passkeys] login start URL:", startUrl);
 
     const startRes = await fetch(startUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({}),
+      method : "POST",
+      headers : {"Content-Type":"application/json"},
+      body : "{}"
     });
-    const startJson = await startRes.json();
-    if (!startRes.ok) {
-      throw new Error(
-        `login-start失敗 ${startRes.status}: ${startJson.error || await startRes.text()}`
-      );
+    let startJson;
+    try{
+      startJson = await startRes.json();
+    } catch {
+      startJson = {};
+    }
+    if (!startRes.ok){
+      const msg = startJson.error || JSON.stringify(startJson) || startRes.statusText;
+      throw new Error(`login-start失敗 ${startRes.status}: ${msg}`);
     }
 
     const pk = startJson.publicKey;
@@ -173,16 +177,23 @@ export async function loginWithPasskey() {
     console.debug("[passkeys] login finish URL:", finishUrl);
 
     const finRes = await fetch(finishUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
+      method : "POST",
+      headers : {"Content-Type":"application/json"},
+      body : "{}"
     });
-    const finJson = await finRes.json();
+    let finJson;
+    try{
+      finJson = await finRes.json();
+    } catch {
+      finJson = {};
+    }
+    if (!finRes.ok){
+      const msg = finJson.error || JSON.stringify(finJson) || finRes.statusText;
+      throw new Error(`login-finish失敗 ${finRes.status}: ${msg}`);
+    }
 
     if (!finRes.ok) {
-      throw new Error(
-        `login-finish失敗 ${finRes.status}: ${finJson.error || await finRes.text()}`
-      );
+      throw new Error
     }
 
     if (!finJson.action_link) {
