@@ -107,85 +107,93 @@ export async function registerPasskey() {
   }
 }
 
-// ========================================================
-//  パスキーでログイン（ログイン画面）
-// ========================================================
+// すでに書いてある import / 共通関数はそのままでOK
+// import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from "./supabase.js";
+// const b64uToBuf, bufToB64 などもそのまま使います
+
+// ==========================
+//  パスキーでログイン
+// ==========================
 export async function loginWithPasskey() {
   if (!window.PublicKeyCredential || !navigator.credentials) {
-    alert("このブラウザはパスキー(WebAuthn)に対応していません。");
+    alert("このブラウザはパスキー（WebAuthn）に対応していません");
     return;
   }
 
   try {
-    // 1) Edge Function: webauthn-login-start （未ログインなので Authorization なし）
-    const startUrl = FN("webauthn-login-start");
-    console.debug("[passkeys] login start URL:", startUrl);
+    // --- 1) start: Edge Function を supabase.functions.invoke で呼ぶ ---
+    const { data: startJson, error: startErr } =
+      await supabase.functions.invoke("webauthn-login-start", {
+        body: {},     // 今回は特にパラメータなし
+      });
 
-    const startRes = await fetch(startUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: "{}",      // 空のJSON
-    });
-
-    const startJson = await startRes.json(); // ★ body は一度だけ読む
-    if (!startRes.ok) {
-      const msg = startJson.error || startRes.statusText;
-      throw new Error(`login-start失敗 ${startRes.status}: ${msg}`);
+    if (startErr) {
+      console.error("login-start error:", startErr);
+      throw new Error(
+        `login-start失敗: ${startErr.message || JSON.stringify(startErr)}`
+      );
     }
 
-    const pk = startJson.publicKey;
+    // Edge Function 側が { publicKey: {...}, challenge: "..."} の形でも、
+    // 直接 PublicKeyCredentialRequestOptions でも動くようにしておく
+    const pk = startJson.publicKey || startJson;
+
+    // challenge / allowCredentials の base64url → ArrayBuffer 変換
     pk.challenge = b64uToBuf(pk.challenge);
+    if (pk.allowCredentials) {
+      pk.allowCredentials = pk.allowCredentials.map((c) => ({
+        ...c,
+        id: b64uToBuf(c.id),
+      }));
+    }
 
-    // Discoverable Credential 前提 → allowCredentials は空配列のままでOK
-
-    // 2) 認証器から assertion 取得
+    // --- 2) ブラウザの WebAuthn API で認証 ---
     const cred = await navigator.credentials.get({ publicKey: pk });
-    if (!cred) throw new Error("認証がキャンセルされました。");
+    if (!cred) {
+      throw new Error("credential を取得できませんでした");
+    }
 
-    const assertion = {
+    const authResp = {
       id: cred.id,
-      rawId: toB64(cred.rawId),
+      rawId: bufToB64(cred.rawId),
       type: cred.type,
       response: {
-        clientDataJSON: toB64(cred.response.clientDataJSON),
-        authenticatorData: toB64(cred.response.authenticatorData),
-        signature: toB64(cred.response.signature),
+        clientDataJSON:    bufToB64(cred.response.clientDataJSON),
+        authenticatorData: bufToB64(cred.response.authenticatorData),
+        signature:         bufToB64(cred.response.signature),
         userHandle: cred.response.userHandle
-          ? toB64(cred.response.userHandle)
+          ? bufToB64(cred.response.userHandle)
           : null,
       },
     };
 
-    // 3) Edge Function: webauthn-login-finish
-    const finishUrl = FN("webauthn-login-finish");
-    console.debug("[passkeys] login finish URL:", finishUrl);
-
-    const finishRes = await fetch(finishUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        assertion,
-        expectedChallenge: startJson.challenge,
-      }),
-    });
-
-    const result = await finishRes.json();
-    if (!finishRes.ok) {
-      const msg = result.error || finishRes.statusText;
-      throw new Error(`login-finish失敗 ${finishRes.status}: ${msg}`);
-    }
-
-    // Edge Function 側で access_token / refresh_token を返す設計にしている前提
-    if (result.access_token && result.refresh_token) {
-      const { error } = await supabase.auth.setSession({
-        access_token: result.access_token,
-        refresh_token: result.refresh_token,
+    // --- 3) finish: 認証結果を Edge Function に送る ---
+    const { data: finishJson, error: finishErr } =
+      await supabase.functions.invoke("webauthn-login-finish", {
+        body: {
+          authResp,
+          expectedChallenge: startJson.challenge ?? startJson.publicKey?.challenge,
+        },
       });
-      if (error) throw error;
+
+    if (finishErr) {
+      console.error("login-finish error:", finishErr);
+      throw new Error(
+        `login-finish失敗: ${finishErr.message || JSON.stringify(finishErr)}`
+      );
     }
+
+    if (!finishJson.session) {
+      throw new Error(
+        `session が返ってきませんでした: ${JSON.stringify(finishJson)}`
+      );
+    }
+
+    // Supabase のセッションとしてブラウザに保存
+    await supabase.auth.setSession(finishJson.session);
 
     alert("パスキーでログインしました");
-    location.href = "main.html";
+    window.location.href = "main.html";
   } catch (e) {
     console.error(e);
     alert(`パスキーでのログインに失敗しました：${e.message || e}`);
