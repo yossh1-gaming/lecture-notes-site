@@ -4,31 +4,44 @@ import { supabase } from "./supabase.js";
 import { SUPABASE_URL as EXPORTED_URL } from "./supabase.js";
 
 // ---- Edge Functions のベース URL ----
-const FALLBACK_SUPABASE_URL = "https://camhjokfxzzelqlirxir.supabase.co"; // ←自分のプロジェクトURL
+const FALLBACK_SUPABASE_URL = "https://camhjokfxzzelqlirxir.supabase.co"; // ← あなたのプロジェクトURL
 const BASE = (typeof EXPORTED_URL === "string" && EXPORTED_URL) || FALLBACK_SUPABASE_URL;
 const FN = (name) => `${BASE.replace(/\/$/, "")}/functions/v1/${name}`;
 
-// ---- 共通ヘルパ ----
+// ==========================
+// 共通ヘルパ
+// ==========================
 async function getValidAccessToken() {
-  const { data: { session }, error } = await supabase.auth.getSession();
+  const {
+    data: { session },
+    error,
+  } = await supabase.auth.getSession();
   if (error || !session?.access_token) {
-    throw new Error("ログインしていません（tokenなし）");
+    throw new Error("ログインしていません（token なし）");
   }
   return session.access_token;
 }
 
-const b64uToBuf = (b64u) =>
-  Uint8Array.from(
-    atob(b64u.replace(/-/g, "+").replace(/_/g, "/")),
-    (c) => c.charCodeAt(0)
-  ).buffer;
+// base64url → ArrayBuffer
+function b64uToBuf(b64u) {
+  const b64 = b64u.replace(/-/g, "+").replace(/_/g, "/");
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes.buffer;
+}
 
-const toB64 = (buf) =>
-  btoa(String.fromCharCode(...new Uint8Array(buf)));
+// ArrayBuffer → base64
+function bufToB64(buf) {
+  const bytes = new Uint8Array(buf);
+  let bin = "";
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  return btoa(bin);
+}
 
-// ========================================================
-//  パスキー登録（設定画面）
-// ========================================================
+// ==========================
+// パスキー登録（設定画面）
+// ==========================
 export async function registerPasskey() {
   try {
     const token = await getValidAccessToken();
@@ -41,13 +54,13 @@ export async function registerPasskey() {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`,   // 登録は認証必須
+        Authorization: `Bearer ${token}`, // 認証必須
       },
       body: "{}",
     });
 
     if (!startRes.ok) {
-      const text = await startRes.text();
+      const text = await startRes.text().catch(() => "");
       throw new Error(`start失敗 ${startRes.status}: ${text}`);
     }
 
@@ -71,11 +84,11 @@ export async function registerPasskey() {
 
     const attResp = {
       id: credential.id,
-      rawId: toB64(credential.rawId),
+      rawId: bufToB64(credential.rawId),
       type: credential.type,
       response: {
-        clientDataJSON: toB64(credential.response.clientDataJSON),
-        attestationObject: toB64(credential.response.attestationObject),
+        clientDataJSON: bufToB64(credential.response.clientDataJSON),
+        attestationObject: bufToB64(credential.response.attestationObject),
       },
     };
 
@@ -87,7 +100,7 @@ export async function registerPasskey() {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`,
+        Authorization: `Bearer ${token}`, // これも認証あり
       },
       body: JSON.stringify({
         attResp,
@@ -96,7 +109,7 @@ export async function registerPasskey() {
     });
 
     if (!finishRes.ok) {
-      const text = await finishRes.text();
+      const text = await finishRes.text().catch(() => "");
       throw new Error(`finish失敗 ${finishRes.status}: ${text}`);
     }
 
@@ -107,12 +120,8 @@ export async function registerPasskey() {
   }
 }
 
-// すでに書いてある import / 共通関数はそのままでOK
-// import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from "./supabase.js";
-// const b64uToBuf, bufToB64 などもそのまま使います
-
 // ==========================
-//  パスキーでログイン
+// パスキーでログイン
 // ==========================
 export async function loginWithPasskey() {
   if (!window.PublicKeyCredential || !navigator.credentials) {
@@ -121,24 +130,29 @@ export async function loginWithPasskey() {
   }
 
   try {
-    // --- 1) start: Edge Function を supabase.functions.invoke で呼ぶ ---
-    const { data: startJson, error: startErr } =
-      await supabase.functions.invoke("webauthn-login-start", {
-        body: {},     // 今回は特にパラメータなし
-      });
+    // 1) Edge Function: webauthn-login-start
+    const startUrl = FN("webauthn-login-start");
+    console.debug("[passkeys] login start URL:", startUrl);
 
-    if (startErr) {
-      console.error("login-start error:", startErr);
-      throw new Error(
-        `login-start失敗: ${startErr.message || JSON.stringify(startErr)}`
-      );
+    const startRes = await fetch(startUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: "{}", // 今回はパラメータなし想定
+    });
+
+    if (!startRes.ok) {
+      const text = await startRes.text().catch(() => "");
+      throw new Error(`login-start失敗 ${startRes.status}: ${text}`);
     }
 
-    // Edge Function 側が { publicKey: {...}, challenge: "..."} の形でも、
-    // 直接 PublicKeyCredentialRequestOptions でも動くようにしておく
+    const startJson = await startRes.json();
+
+    // サーバー側が { publicKey: {...}, challenge:"..." } でも、
+    // 直接 PublicKeyCredentialRequestOptions でも動くようにする
     const pk = startJson.publicKey || startJson;
 
-    // challenge / allowCredentials の base64url → ArrayBuffer 変換
     pk.challenge = b64uToBuf(pk.challenge);
     if (pk.allowCredentials) {
       pk.allowCredentials = pk.allowCredentials.map((c) => ({
@@ -147,41 +161,46 @@ export async function loginWithPasskey() {
       }));
     }
 
-    // --- 2) ブラウザの WebAuthn API で認証 ---
+    // 2) WebAuthn 認証
     const cred = await navigator.credentials.get({ publicKey: pk });
-    if (!cred) {
-      throw new Error("credential を取得できませんでした");
-    }
+    if (!cred) throw new Error("credential を取得できませんでした");
 
     const authResp = {
       id: cred.id,
       rawId: bufToB64(cred.rawId),
       type: cred.type,
       response: {
-        clientDataJSON:    bufToB64(cred.response.clientDataJSON),
+        clientDataJSON: bufToB64(cred.response.clientDataJSON),
         authenticatorData: bufToB64(cred.response.authenticatorData),
-        signature:         bufToB64(cred.response.signature),
+        signature: bufToB64(cred.response.signature),
         userHandle: cred.response.userHandle
           ? bufToB64(cred.response.userHandle)
           : null,
       },
     };
 
-    // --- 3) finish: 認証結果を Edge Function に送る ---
-    const { data: finishJson, error: finishErr } =
-      await supabase.functions.invoke("webauthn-login-finish", {
-        body: {
-          authResp,
-          expectedChallenge: startJson.challenge ?? startJson.publicKey?.challenge,
-        },
-      });
+    // 3) Edge Function: webauthn-login-finish
+    const finishUrl = FN("webauthn-login-finish");
+    console.debug("[passkeys] login finish URL:", finishUrl);
 
-    if (finishErr) {
-      console.error("login-finish error:", finishErr);
-      throw new Error(
-        `login-finish失敗: ${finishErr.message || JSON.stringify(finishErr)}`
-      );
+    const finishRes = await fetch(finishUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        authResp,
+        expectedChallenge:
+          startJson.challenge ?? startJson.publicKey?.challenge,
+      }),
+    });
+
+    if (!finishRes.ok) {
+      const text = await finishRes.text().catch(() => "");
+      throw new Error(`login-finish失敗 ${finishRes.status}: ${text}`);
     }
+
+    const finishJson = await finishRes.json();
 
     if (!finishJson.session) {
       throw new Error(
@@ -189,7 +208,7 @@ export async function loginWithPasskey() {
       );
     }
 
-    // Supabase のセッションとしてブラウザに保存
+    // Supabase のセッションとして保存
     await supabase.auth.setSession(finishJson.session);
 
     alert("パスキーでログインしました");
