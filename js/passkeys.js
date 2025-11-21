@@ -1,67 +1,47 @@
 // js/passkeys.js
-import { supabase } from "./supabase.js";
-// supabase.js 側で SUPABASE_URL を export しているならそれを使う
-import { SUPABASE_URL as EXPORTED_URL } from "./supabase.js";
+import { supabase, SUPABASE_URL as EXPORTED_URL } from "./supabase.js";
 
-// ---- Edge Functions のベース URL ----
-const FALLBACK_SUPABASE_URL = "https://camhjokfxzzelqlirxir.supabase.co"; // ← あなたのプロジェクトURL
-const BASE = (typeof EXPORTED_URL === "string" && EXPORTED_URL) || FALLBACK_SUPABASE_URL;
-const FN = (name) => `${BASE.replace(/\/$/, "")}/functions/v1/${name}`;
+const FALLBACK_SUPABASE_URL = "https://camhjokfxzzelqlirxir.supabase.co";
+const BASE = (EXPORTED_URL && typeof EXPORTED_URL === "string")
+  ? EXPORTED_URL
+  : FALLBACK_SUPABASE_URL;
 
-// ==========================
-// 共通ヘルパ
-// ==========================
+const FN = (name) =>
+  `${BASE.replace(/\/$/, "")}/functions/v1/${name}`;
+
+const b64uToBuf = (b64u) =>
+  Uint8Array.from(
+    atob(b64u.replace(/-/g, "+").replace(/_/g, "/")),
+    c => c.charCodeAt(0)
+  ).buffer;
+
+const bufToB64 = (buf) =>
+  btoa(String.fromCharCode(...new Uint8Array(buf)));
+
 async function getValidAccessToken() {
-  const {
-    data: { session },
-    error,
-  } = await supabase.auth.getSession();
-  if (error || !session?.access_token) {
-    throw new Error("ログインしていません（token なし）");
-  }
+  const { data: { session }, error } = await supabase.auth.getSession();
+  if (error || !session?.access_token) throw new Error("ログインしていません");
   return session.access_token;
 }
 
-// base64url → ArrayBuffer
-function b64uToBuf(b64u) {
-  const b64 = b64u.replace(/-/g, "+").replace(/_/g, "/");
-  const bin = atob(b64);
-  const bytes = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-  return bytes.buffer;
-}
-
-// ArrayBuffer → base64
-function bufToB64(buf) {
-  const bytes = new Uint8Array(buf);
-  let bin = "";
-  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
-  return btoa(bin);
-}
-
-// ==========================
-// パスキー登録（設定画面）
-// ==========================
+// ========================
+//  登録
+// ========================
 export async function registerPasskey() {
   try {
     const token = await getValidAccessToken();
 
-    // 1) Edge Function: webauthn-register-start
-    const startUrl = FN("webauthn-register-start");
-    console.debug("[passkeys] register start URL:", startUrl);
-
-    const startRes = await fetch(startUrl, {
+    const startRes = await fetch(FN("webauthn-register-start"), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`, // 認証必須
+        "Authorization": `Bearer ${token}`,
       },
       body: "{}",
     });
 
     if (!startRes.ok) {
-      const text = await startRes.text().catch(() => "");
-      throw new Error(`start失敗 ${startRes.status}: ${text}`);
+      throw new Error(`register-start失敗 ${startRes.status}: ${await startRes.text()}`);
     }
 
     const pubKey = await startRes.json();
@@ -69,18 +49,14 @@ export async function registerPasskey() {
     const publicKey = {
       ...pubKey,
       challenge: b64uToBuf(pubKey.challenge),
-      user: {
-        ...pubKey.user,
-        id: b64uToBuf(pubKey.user.id),
-      },
-      excludeCredentials: (pubKey.excludeCredentials || []).map((c) => ({
-        ...c,
-        id: b64uToBuf(c.id),
+      user: { ...pubKey.user, id: b64uToBuf(pubKey.user.id) },
+      excludeCredentials: (pubKey.excludeCredentials || []).map(c => ({
+        ...c, id: b64uToBuf(c.id)
       })),
     };
 
     const credential = await navigator.credentials.create({ publicKey });
-    if (!credential) throw new Error("credential が取得できませんでした");
+    if (!credential) throw new Error("credentialが取得できません");
 
     const attResp = {
       id: credential.id,
@@ -92,15 +68,11 @@ export async function registerPasskey() {
       },
     };
 
-    // 3) Edge Function: webauthn-register-finish
-    const finishUrl = FN("webauthn-register-finish");
-    console.debug("[passkeys] register finish URL:", finishUrl);
-
-    const finishRes = await fetch(finishUrl, {
+    const finishRes = await fetch(FN("webauthn-register-finish"), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`, // これも認証あり
+        "Authorization": `Bearer ${token}`,
       },
       body: JSON.stringify({
         attResp,
@@ -109,110 +81,79 @@ export async function registerPasskey() {
     });
 
     if (!finishRes.ok) {
-      const text = await finishRes.text().catch(() => "");
-      throw new Error(`finish失敗 ${finishRes.status}: ${text}`);
+      throw new Error(`register-finish失敗 ${finishRes.status}: ${await finishRes.text()}`);
     }
 
-    alert("パスキー登録が完了しました");
+    alert("パスキー登録が完了しました（本番ドメインでのみ有効）");
   } catch (e) {
     console.error(e);
     alert(`登録に失敗：${e.message || e}`);
   }
 }
 
-// ==========================
-// パスキーでログイン
-// ==========================
+// ========================
+//  ログイン
+// ========================
 export async function loginWithPasskey() {
-  if (!window.PublicKeyCredential || !navigator.credentials) {
-    alert("このブラウザはパスキー（WebAuthn）に対応していません");
-    return;
-  }
-
   try {
-    // 1) Edge Function: webauthn-login-start
-    const startUrl = FN("webauthn-login-start");
-    console.debug("[passkeys] login start URL:", startUrl);
-
-    const startRes = await fetch(startUrl, {
+    // --- start（認証不要） ---
+    const startRes = await fetch(FN("webauthn-login-start"), {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: "{}", // 今回はパラメータなし想定
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
     });
 
     if (!startRes.ok) {
-      const text = await startRes.text().catch(() => "");
-      throw new Error(`login-start失敗 ${startRes.status}: ${text}`);
+      throw new Error(`login-start失敗 ${startRes.status}: ${await startRes.text()}`);
     }
 
-    const startJson = await startRes.json();
+    const { publicKey } = await startRes.json();
 
-    // サーバー側が { publicKey: {...}, challenge:"..." } でも、
-    // 直接 PublicKeyCredentialRequestOptions でも動くようにする
-    const pk = startJson.publicKey || startJson;
+    const pk = {
+      ...publicKey,
+      challenge: b64uToBuf(publicKey.challenge),
+      allowCredentials: (publicKey.allowCredentials || []).map(c => ({
+        ...c, id: b64uToBuf(c.id),
+      })),
+    };
 
-    pk.challenge = b64uToBuf(pk.challenge);
-    if (pk.allowCredentials) {
-      pk.allowCredentials = pk.allowCredentials.map((c) => ({
-        ...c,
-        id: b64uToBuf(c.id),
-      }));
-    }
+    const assertion = await navigator.credentials.get({ publicKey: pk });
+    if (!assertion) throw new Error("assertion が取得できません");
 
-    // 2) WebAuthn 認証
-    const cred = await navigator.credentials.get({ publicKey: pk });
-    if (!cred) throw new Error("credential を取得できませんでした");
-
-    const authResp = {
-      id: cred.id,
-      rawId: bufToB64(cred.rawId),
-      type: cred.type,
+    const assResp = {
+      id: assertion.id,
+      rawId: bufToB64(assertion.rawId),
+      type: assertion.type,
       response: {
-        clientDataJSON: bufToB64(cred.response.clientDataJSON),
-        authenticatorData: bufToB64(cred.response.authenticatorData),
-        signature: bufToB64(cred.response.signature),
-        userHandle: cred.response.userHandle
-          ? bufToB64(cred.response.userHandle)
+        clientDataJSON: bufToB64(assertion.response.clientDataJSON),
+        authenticatorData: bufToB64(assertion.response.authenticatorData),
+        signature: bufToB64(assertion.response.signature),
+        userHandle: assertion.response.userHandle
+          ? bufToB64(assertion.response.userHandle)
           : null,
       },
     };
 
-    // 3) Edge Function: webauthn-login-finish
-    const finishUrl = FN("webauthn-login-finish");
-    console.debug("[passkeys] login finish URL:", finishUrl);
-
-    const finishRes = await fetch(finishUrl, {
+    // --- finish（ここでSupabaseセッション化） ---
+    const finishRes = await fetch(FN("webauthn-login-finish"), {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        authResp,
-        expectedChallenge:
-          startJson.challenge ?? startJson.publicKey?.challenge,
+        assResp,
+        expectedChallenge: publicKey.challenge,
       }),
     });
 
     if (!finishRes.ok) {
-      const text = await finishRes.text().catch(() => "");
-      throw new Error(`login-finish失敗 ${finishRes.status}: ${text}`);
+      throw new Error(`login-finish失敗 ${finishRes.status}: ${await finishRes.text()}`);
     }
 
-    const finishJson = await finishRes.json();
+    const { access_token, refresh_token } = await finishRes.json();
 
-    if (!finishJson.session) {
-      throw new Error(
-        `session が返ってきませんでした: ${JSON.stringify(finishJson)}`
-      );
-    }
+    // Supabaseセッションに差し込む
+    await supabase.auth.setSession({ access_token, refresh_token });
 
-    // Supabase のセッションとして保存
-    await supabase.auth.setSession(finishJson.session);
-
-    alert("パスキーでログインしました");
-    window.location.href = "main.html";
+    location.href = "main.html";
   } catch (e) {
     console.error(e);
     alert(`パスキーでのログインに失敗しました：${e.message || e}`);
