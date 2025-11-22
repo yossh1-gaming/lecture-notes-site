@@ -1,14 +1,10 @@
 // js/passkeys.js
-import { supabase, SUPABASE_URL as EXPORTED_URL } from "./supabase.js";
+import { supabase, SUPABASE_URL } from "./supabase.js";
 
-const FALLBACK_SUPABASE_URL = "https://camhjokfxzzelqlirxir.supabase.co";
-const BASE = (EXPORTED_URL && typeof EXPORTED_URL === "string")
-  ? EXPORTED_URL
-  : FALLBACK_SUPABASE_URL;
+const BASE = SUPABASE_URL; // supabase.jsでexportしてる前提
+const FN = (name) => `${BASE.replace(/\/$/, "")}/functions/v1/${name}`;
 
-const FN = (name) =>
-  `${BASE.replace(/\/$/, "")}/functions/v1/${name}`;
-
+// ---- helpers ----
 const b64uToBuf = (b64u) =>
   Uint8Array.from(
     atob(b64u.replace(/-/g, "+").replace(/_/g, "/")),
@@ -18,144 +14,140 @@ const b64uToBuf = (b64u) =>
 const bufToB64 = (buf) =>
   btoa(String.fromCharCode(...new Uint8Array(buf)));
 
-async function getValidAccessToken() {
-  const { data: { session }, error } = await supabase.auth.getSession();
-  if (error || !session?.access_token) throw new Error("ログインしていません");
+async function getValidAccessToken(){
+  const { data:{session} } = await supabase.auth.getSession();
+  if(!session?.access_token) throw new Error("ログインしていません");
   return session.access_token;
 }
 
-// ========================
-//  登録
-// ========================
-export async function registerPasskey() {
-  try {
+// --------------------
+// パスキー登録（ログイン済みのみ）
+// --------------------
+export async function registerPasskey(){
+  try{
     const token = await getValidAccessToken();
 
-    const startRes = await fetch(FN("webauthn-register-start"), {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`,
+    const startRes = await fetch(FN("webauthn-register-start"),{
+      method:"POST",
+      headers:{
+        "Content-Type":"application/json",
+        "Authorization":`Bearer ${token}`,
       },
-      body: "{}",
+      body: JSON.stringify({}),
     });
+    const startJson = await startRes.json();
+    if(!startRes.ok) throw new Error(startJson.error || "register-start failed");
 
-    if (!startRes.ok) {
-      throw new Error(`register-start失敗 ${startRes.status}: ${await startRes.text()}`);
-    }
-
-    const pubKey = await startRes.json();
-
-    const publicKey = {
-      ...pubKey,
-      challenge: b64uToBuf(pubKey.challenge),
-      user: { ...pubKey.user, id: b64uToBuf(pubKey.user.id) },
-      excludeCredentials: (pubKey.excludeCredentials || []).map(c => ({
-        ...c, id: b64uToBuf(c.id)
+    const pubKey = {
+      ...startJson,
+      challenge: b64uToBuf(startJson.challenge),
+      user:{
+        ...startJson.user,
+        id: b64uToBuf(startJson.user.id),
+      },
+      excludeCredentials:(startJson.excludeCredentials||[]).map(c=>({
+        ...c,
+        id: b64uToBuf(c.id),
       })),
     };
 
-    const credential = await navigator.credentials.create({ publicKey });
-    if (!credential) throw new Error("credentialが取得できません");
+    const credential = await navigator.credentials.create({ publicKey: pubKey });
+    if(!credential) throw new Error("credentialなし");
 
     const attResp = {
       id: credential.id,
       rawId: bufToB64(credential.rawId),
       type: credential.type,
-      response: {
+      response:{
         clientDataJSON: bufToB64(credential.response.clientDataJSON),
         attestationObject: bufToB64(credential.response.attestationObject),
-      },
+      }
     };
 
-    const finishRes = await fetch(FN("webauthn-register-finish"), {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`,
+    const finishRes = await fetch(FN("webauthn-register-finish"),{
+      method:"POST",
+      headers:{
+        "Content-Type":"application/json",
+        "Authorization":`Bearer ${token}`,
       },
       body: JSON.stringify({
         attResp,
-        expectedChallenge: pubKey.challenge,
-      }),
+        expectedChallenge: startJson.challenge,
+      })
     });
+    const finishJson = await finishRes.json();
+    if(!finishRes.ok) throw new Error(finishJson.error || "register-finish failed");
 
-    if (!finishRes.ok) {
-      throw new Error(`register-finish失敗 ${finishRes.status}: ${await finishRes.text()}`);
-    }
-
-    alert("パスキー登録が完了しました（本番ドメインでのみ有効）");
-  } catch (e) {
+    alert("パスキー登録完了！");
+  }catch(e){
     console.error(e);
-    alert(`登録に失敗：${e.message || e}`);
+    alert(`登録失敗: ${e.message||e}`);
   }
 }
 
-// ========================
-//  ログイン
-// ========================
-export async function loginWithPasskey() {
-  try {
-    // --- start（認証不要） ---
-    const startRes = await fetch(FN("webauthn-login-start"), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: "{}",
+// --------------------
+// パスキーログイン（ログイン前なのでBearer不要）
+// --------------------
+export async function loginWithPasskey(email){
+  try{
+    if(!email) throw new Error("メールを入力してね");
+
+    const startRes = await fetch(FN("webauthn-login-start"),{
+      method:"POST",
+      headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify({ email }),
     });
+    const startJson = await startRes.json();
+    if(!startRes.ok) throw new Error(startJson.error || "login-start failed");
 
-    if (!startRes.ok) {
-      throw new Error(`login-start失敗 ${startRes.status}: ${await startRes.text()}`);
-    }
-
-    const { publicKey } = await startRes.json();
-
-    const pk = {
-      ...publicKey,
-      challenge: b64uToBuf(publicKey.challenge),
-      allowCredentials: (publicKey.allowCredentials || []).map(c => ({
-        ...c, id: b64uToBuf(c.id),
-      })),
+    const pk = startJson.publicKey;
+    const publicKey = {
+      ...pk,
+      challenge: b64uToBuf(pk.challenge),
+      allowCredentials:(pk.allowCredentials||[]).map(c=>({
+        ...c,
+        id: b64uToBuf(c.id),
+      }))
     };
 
-    const assertion = await navigator.credentials.get({ publicKey: pk });
-    if (!assertion) throw new Error("assertion が取得できません");
+    const assertion = await navigator.credentials.get({ publicKey });
+    if(!assertion) throw new Error("assertionなし");
 
     const assResp = {
       id: assertion.id,
       rawId: bufToB64(assertion.rawId),
       type: assertion.type,
-      response: {
+      response:{
         clientDataJSON: bufToB64(assertion.response.clientDataJSON),
         authenticatorData: bufToB64(assertion.response.authenticatorData),
         signature: bufToB64(assertion.response.signature),
         userHandle: assertion.response.userHandle
           ? bufToB64(assertion.response.userHandle)
           : null,
-      },
+      }
     };
 
-    // --- finish（ここでSupabaseセッション化） ---
-    const finishRes = await fetch(FN("webauthn-login-finish"), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
+    const finishRes = await fetch(FN("webauthn-login-finish"),{
+      method:"POST",
+      headers:{ "Content-Type":"application/json" },
       body: JSON.stringify({
         assResp,
-        expectedChallenge: publicKey.challenge,
+        expectedChallenge: startJson.expectedChallenge,
+        userId: startJson.userId,
       }),
     });
+    const finishJson = await finishRes.json();
+    if(!finishRes.ok) throw new Error(finishJson.error || "login-finish failed");
 
-    if (!finishRes.ok) {
-      throw new Error(`login-finish失敗 ${finishRes.status}: ${await finishRes.text()}`);
+    // finish側でsupabaseのsession相当を返す設計ならセットする
+    if(finishJson.session){
+      await supabase.auth.setSession(finishJson.session);
     }
 
-    const { access_token, refresh_token } = await finishRes.json();
-
-    // Supabaseセッションに差し込む
-    await supabase.auth.setSession({ access_token, refresh_token });
-
-    location.href = "main.html";
-  } catch (e) {
+    alert("パスキーでログイン成功！");
+    location.href="main.html";
+  }catch(e){
     console.error(e);
-    alert(`パスキーでのログインに失敗しました：${e.message || e}`);
+    alert(`パスキーでのログインに失敗: ${e.message||e}`);
   }
 }

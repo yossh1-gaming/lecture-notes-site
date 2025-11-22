@@ -43,12 +43,18 @@
     };
   </script>
 
+  <!-- 生体認証でログイン -->
   <button id="login-passkey-platform" style="margin-top:8px">生体認証でログイン</button>
+
   <script type="module">
     import { loginWithPasskey } from "./js/passkeys.js";
-    document.getElementById("login-passkey-platform")
-      .addEventListener("click", loginWithPasskey);  
+
+    document.getElementById("login-passkey-platform").onclick = async () => {
+      const email = document.getElementById("login-email").value.trim();
+      await loginWithPasskey(email);
+    };
   </script>
+
 
 
   <div class="link">
