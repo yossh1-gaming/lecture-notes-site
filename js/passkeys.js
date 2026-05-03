@@ -2,7 +2,7 @@
 import { supabase } from "./supabase.js";
 import { SUPABASE_URL as EXPORTED_URL } from "./supabase.js";
 
-const FALLBACK_SUPABASE_URL = "https://camhjokfxzzelqlirxir.supabase.co";
+const FALLBACK_SUPABASE_URL = "https://lhluebakxcqbyejzsgmu.supabase.co";
 const BASE = (typeof EXPORTED_URL === "string" && EXPORTED_URL) || FALLBACK_SUPABASE_URL;
 const FN = (name) => `${BASE.replace(/\/$/, "")}/functions/v1/${name}`;
 
