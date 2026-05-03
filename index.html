@@ -48,8 +48,11 @@
 
 <script type="module">
   import { loginWithPasskey } from "./js/passkeys.js";
-  document.getElementById("login-passkey-platform")
-    .addEventListener("click",loginWithPasskey);
+
+  const btn = document.getElementById("login-passkey-platform");
+  if (btn) {
+    btn.addEventListener("click", loginWithPasskey);
+  }
 </script>
 
 
