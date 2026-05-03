@@ -26,7 +26,12 @@ async function setupUI() {
     // ログイン中：プロフィール反映＆アップロード欄を表示
     currentUser = session.user;
     await getCurrentUserProfile();
-    const nickname = currentUserProfile.username || "未設定ニックネーム";
+    const nickname =
+        currentUserProfile.nickname ||
+        currentUserProfile.username ||
+        currentUser.user_metadata?.username ||
+        currentUser.email ||
+        "未設定ニックネーム";
     userInfoDiv.textContent = `ログイン中：${nickname}`;
     uploadSection.style.display = "block";
     document.getElementById("upload-btn").onclick = uploadNote;
