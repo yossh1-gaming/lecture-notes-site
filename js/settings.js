@@ -1,4 +1,5 @@
 // js/settings.js
+import { use } from "react";
 import { supabase } from "./supabase.js";
 
 const $ = (id) => document.getElementById(id);
@@ -40,7 +41,7 @@ let currentUser = null;
     .maybeSingle();
 
   if (!error && prof?.nickname) {
-    $("nick").value = prof.nickname;
+    $("nick").value = profile?.nickname || profile?.username || "";
   }
 
   bindEvents();
@@ -60,6 +61,7 @@ function bindEvents() {
       .upsert(
         {
           id: currentUser.id,
+          username: nick,
           nickname: nick,
           updated_at: new Date().toISOString()
         },
