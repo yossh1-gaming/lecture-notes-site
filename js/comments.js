@@ -40,6 +40,15 @@ function updateGuestBanner() {
 function setFormState() {
   const authed = !!me && !!noteId;
 
+  console.log("setFormState", {
+    me,
+    noteId,
+    authed,
+    postBtn,
+    inputEl,
+    postBtnDisabledBefore: postBtn?.disabled,
+  });
+
   if (postBtn) postBtn.disabled = !authed;
   if (inputEl) inputEl.disabled = !authed;
 
@@ -48,6 +57,11 @@ function setFormState() {
       ? "※ コメントは公開されます。"
       : "※ ログインするとコメントを投稿できます。";
   }
+
+  console.log("setFormState after", {
+    postBtnDisabledAfter: postBtn?.disabled,
+    inputDisabledAfter: inputEl?.disabled,
+  });
 }
 
 async function initAuth() {
@@ -215,22 +229,42 @@ async function postComment() {
   inputEl.value = "";
   await loadComments();
 }
-
 function bindEventsOnce() {
-  if (!postBtn || postBtn.__bound) return;
+  console.log("bindEventsOnce start", {
+    postBtn,
+    alreadyBound: postBtn?.__bound,
+  });
+
+  if (!postBtn) {
+    console.error("comment-btn が見つかりません");
+    return;
+  }
+
+  if (postBtn.__bound) return;
 
   postBtn.__bound = true;
 
-  postBtn.addEventListener("click", postComment);
+  postBtn.addEventListener("click", () => {
+    console.log("comment button clicked", {
+      disabled: postBtn.disabled,
+      value: inputEl?.value,
+      noteId,
+      me,
+    });
+    postComment();
+  });
 
   if (inputEl) {
     inputEl.addEventListener("keydown", (e) => {
       if (e.key === "Enter" && !e.shiftKey && !postBtn.disabled) {
         e.preventDefault();
+        console.log("comment enter pressed");
         postComment();
       }
     });
   }
+
+  console.log("comment button event bound");
 }
 
 function ensureSingleAuthSubscription() {
@@ -285,6 +319,15 @@ async function boot() {
   bindEventsOnce();
   await loadNoteInfo();
   await loadComments();
+  console.log("comments boot complete", {
+  noteId,
+  me,
+  admin,
+  postBtn,
+  postBtnDisabled: postBtn?.disabled,
+  inputEl,
+  inputDisabled: inputEl?.disabled,
+});
 }
 
 if (document.readyState === "loading") {
