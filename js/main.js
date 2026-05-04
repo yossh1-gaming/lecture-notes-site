@@ -239,21 +239,36 @@ async function loadNotes(searchKeyword = "", categoryFilter = "") {
     dateSpan.className = "small";
     dateSpan.textContent = ` – ${new Date(note.created_at).toLocaleString()}`;
 
-    // PDFを開くボタン（完全URL優先。相対パスは自動で public URL に変換）
+    // PDFを開くボタン
     const viewBtn = document.createElement("button");
     viewBtn.textContent = "PDFを開く";
-    viewBtn.onclick = async () => {
+
+    viewBtn.onclick = () => {
       let url = note.file_url || "";
+
       if (!url) {
-        alert("公開URLが登録されていません。");
+        alert("PDF URLが登録されていません。");
         return;
       }
+
+      url = url.trim();
+
       if (!/^https?:\/\//.test(url)) {
-        // 既存の相対パスデータ向けフォールバック
-        const { data: pub } = supabase.storage.from("lecture-files").getPublicUrl(url);
-        url = pub?.publicUrl || url;
+        const { data } = supabase
+          .storage
+          .from("lecture-files")
+          .getPublicUrl(url);
+
+        url = data?.publicUrl || "";
       }
-      window.open(url, "_blank");
+
+      if (!url) {
+        alert("PDFの公開URLを作成できませんでした。");
+        return;
+      }
+
+      console.log("PDF open URL:", url);
+      window.open(url, "_blank", "noopener,noreferrer");
     };
 
     // 削除ボタン（管理者のみ）
