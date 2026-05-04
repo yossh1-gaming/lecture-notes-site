@@ -53,7 +53,13 @@ function bindEvents() {
   $("save-nick").onclick = async () => {
     const nick = $("nick").value.trim();
     const out = $("nick-msg");
-    msg(out, "保存中…");
+
+    if (!nick) {
+      msg(out, "ニックネームを入力してください", "err");
+      return;
+    }
+
+    msg(out, "保存中...");
 
     const { error } = await supabase
       .from("profiles")
@@ -69,11 +75,31 @@ function bindEvents() {
 
     if (error) {
       msg(out, `保存失敗: ${error.message}`, "err");
-    } else {
-      msg(out, "保存しました", "ok");
+      return;
     }
-  };
 
+    const { error: notesErr } = await supabase
+      .from("notes")
+      .update({ author_name: nick })
+      .eq("user_id", currentUser.id);
+
+    if (notesErr) {
+      msg(out, `投稿者名の更新失敗: ${notesErr.message}`, "err");
+      return;
+    }
+
+    const { error: commentsErr } = await supabase
+      .from("comments")
+      .update({ author_name: nick })
+      .eq("user_id", currentUser.id);
+
+    if (commentsErr) {
+      msg(out, `コメント投稿者名の更新失敗: ${commentsErr.message}`, "err");
+      return;
+    }
+
+    msg(out, "保存しました", "ok");
+  };
   // メール変更
   $("change-email").onclick = async () => {
     const newEmail = $("new-email").value.trim();
