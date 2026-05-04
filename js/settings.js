@@ -54,6 +54,11 @@ function bindEvents() {
     const nick = $("nick").value.trim();
     const out = $("nick-msg");
 
+    if (!currentUser) {
+      msg(out, "ログインしてください", "err");
+      return;
+    }
+
     if (!nick) {
       msg(out, "ニックネームを入力してください", "err");
       return;
@@ -61,23 +66,25 @@ function bindEvents() {
 
     msg(out, "保存中...");
 
-    const { error } = await supabase
+    // 1. profiles を更新
+    const { error: profileErr } = await supabase
       .from("profiles")
       .upsert(
         {
           id: currentUser.id,
           username: nick,
           nickname: nick,
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
         },
         { onConflict: "id" }
       );
 
-    if (error) {
-      msg(out, `保存失敗: ${error.message}`, "err");
+    if (profileErr) {
+      msg(out, `プロフィール更新失敗: ${profileErr.message}`, "err");
       return;
     }
 
+    // 2. 既存投稿の表示名を更新
     const { error: notesErr } = await supabase
       .from("notes")
       .update({ author_name: nick })
@@ -88,13 +95,14 @@ function bindEvents() {
       return;
     }
 
+    // 3. 既存コメントの表示名を更新
     const { error: commentsErr } = await supabase
       .from("comments")
       .update({ author_name: nick })
       .eq("user_id", currentUser.id);
 
     if (commentsErr) {
-      msg(out, `コメント投稿者名の更新失敗: ${commentsErr.message}`, "err");
+      msg(out, `コメント名の更新失敗: ${commentsErr.message}`, "err");
       return;
     }
 
