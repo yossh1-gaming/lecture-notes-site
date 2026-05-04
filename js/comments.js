@@ -49,8 +49,10 @@ function setFormState() {
     postBtnDisabledBefore: postBtn?.disabled,
   });
 
-  if (postBtn) postBtn.disabled = !authed;
-  if (inputEl) inputEl.disabled = !authed;
+  // ボタンは常に押せるようにする
+  // 未ログインなら postComment() の中で alert("ログインしてください。") を出す
+  if (postBtn) postBtn.disabled = false;
+  if (inputEl) inputEl.disabled = false;
 
   if (hintEl) {
     hintEl.textContent = authed
@@ -256,7 +258,7 @@ function bindEventsOnce() {
 
   if (inputEl) {
     inputEl.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" && !e.shiftKey && !postBtn.disabled) {
+      if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
         console.log("comment enter pressed");
         postComment();
