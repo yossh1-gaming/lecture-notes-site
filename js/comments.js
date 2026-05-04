@@ -272,7 +272,9 @@ function bindEventsOnce() {
 function ensureSingleAuthSubscription() {
   if (authSub) return;
 
-  const { data: sub } = supabase.auth.onAuthStateChange(async (event) => {
+  const { data: sub } = supabase.auth.onAuthStateChange(async (event, session) => {
+    console.log("auth state changed:", event, session?.user || null);
+
     if (event === "SIGNED_OUT") {
       me = null;
       admin = false;
@@ -281,14 +283,22 @@ function ensureSingleAuthSubscription() {
       return;
     }
 
-    if (
-      event === "SIGNED_IN" ||
-      event === "INITIAL_SESSION" ||
-      event === "USER_UPDATED"
-    ) {
-      await initAuth();
+    if (event === "SIGNED_IN" || event === "USER_UPDATED") {
+      me = session?.user || null;
+
+      try {
+        admin = me ? await isAdmin() : false;
+      } catch {
+        admin = false;
+      }
+
+      updateGuestBanner();
+      setFormState();
       await loadComments();
     }
+
+    // INITIAL_SESSION では initAuth() を呼ばない
+    // boot() 側で一度だけ initAuth() するため
   });
 
   authSub = sub.subscription;
@@ -316,20 +326,21 @@ async function boot() {
     return;
   }
 
-  ensureSingleAuthSubscription();
   await initAuth();
+  ensureSingleAuthSubscription();
   bindEventsOnce();
   await loadNoteInfo();
   await loadComments();
+
   console.log("comments boot complete", {
-  noteId,
-  me,
-  admin,
-  postBtn,
-  postBtnDisabled: postBtn?.disabled,
-  inputEl,
-  inputDisabled: inputEl?.disabled,
-});
+    noteId,
+    me,
+    admin,
+    postBtn,
+    postBtnDisabled: postBtn?.disabled,
+    inputEl,
+    inputDisabled: inputEl?.disabled,
+  });
 }
 
 if (document.readyState === "loading") {
