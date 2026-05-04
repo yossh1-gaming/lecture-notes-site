@@ -268,7 +268,7 @@ async function loadNotes(searchKeyword = "", categoryFilter = "") {
       }
 
       console.log("PDF open URL:", url);
-      window.open(url, "_blank", "noopener,noreferrer");
+      location.href=url;
     };
 
     // 削除ボタン（管理者のみ）
