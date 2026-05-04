@@ -244,32 +244,38 @@ async function loadNotes(searchKeyword = "", categoryFilter = "") {
     viewBtn.textContent = "PDFを開く";
 
     viewBtn.onclick = () => {
-      let url = note.file_url || "";
+    if (!currentUser) {
+      alert("PDFを閲覧するにはログインしてください。");
+      window.location.href = "index.html";
+      return;
+    }
 
-      if (!url) {
-        alert("PDF URLが登録されていません。");
-        return;
-      }
+    let url = note.file_url || "";
 
-      url = url.trim();
+    if (!url) {
+      alert("PDF URLが登録されていません。");
+      return;
+    }
 
-      if (!/^https?:\/\//.test(url)) {
-        const { data } = supabase
-          .storage
-          .from("lecture-files")
-          .getPublicUrl(url);
+    url = url.trim();
 
-        url = data?.publicUrl || "";
-      }
+    if (!/^https?:\/\//.test(url)) {
+      const { data } = supabase
+        .storage
+        .from("lecture-files")
+        .getPublicUrl(url);
 
-      if (!url) {
-        alert("PDFの公開URLを作成できませんでした。");
-        return;
-      }
+      url = data?.publicUrl || "";
+    }
 
-      console.log("PDF open URL:", url);
-      location.href=url;
-    };
+    if (!url) {
+      alert("PDFの公開URLを作成できませんでした。");
+      return;
+    }
+
+    console.log("PDF open URL:", url);
+    location.href = url;
+  };
 
     // 削除ボタン（管理者のみ）
     let deleteBtn = null;
