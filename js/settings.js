@@ -60,6 +60,7 @@ function bindEvents() {
       .upsert(
         {
           id: currentUser.id,
+          username: nick,
           nickname: nick,
           updated_at: new Date().toISOString()
         },

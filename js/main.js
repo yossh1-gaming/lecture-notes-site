@@ -90,7 +90,9 @@ async function uploadNote() {
   // 1) まず行を作って id を取得
   // insert のときに author_name を一緒に入れる
   let authorName =
-    (currentUserProfile && currentUserProfile.username) ||
+    currentUserProfile?.nickname ||
+    currentUserProfile?.username ||
+    currentUser?.user_metadata?.username ||
     (currentUser?.email ? currentUser.email.split("@")[0] : "名無し");
 
   const { data: inserted, error: insErr } = await supabase
